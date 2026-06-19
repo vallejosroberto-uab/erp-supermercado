@@ -28,11 +28,12 @@ Cada servicio debe poseer su propia API REST, Base de Datos y documentación Swa
 
 | Equipo | Microservicio      | Puerto | Responsable | Base de Datos       | Responsabilidades Principales                                                  |
 | ------ | ------------------ | ------ | ----------- | ------------------- | ------------------------------------------------------------------------------ |
-| **1**  | **Productos**      | `5003` | Celeste     | `productos.db`      | CRUD Productos, Categorías, Marcas, Código de barras y Precio base             |
+| **1**  | **Productos**      | `5003` | Celeste     | `inventario.db`     | CRUD Productos, Categorías, Marcas, productos_costos, historial_precios        |
 | **2**  | **Inventario**     | `5002` | Alan        | `inventario.db`     | Stock por sucursal, ingresos, bajas, transferencias e importación desde Excel  |
 | **3**  | **Ventas**         | `5001` | Marcelo     | `ventas.db`         | Registrar ventas, descontar inventario, registrar pagos y generar comprobantes |
-| **4**  | **Clientes**       | `5004` | Ronaldo     | `clientes.db`       | Gestión de clientes, programa de fidelización, puntos e historial              |
-| **5**  | **Notificaciones** | `5005` | Fabian      | `notificaciones.db` | Escuchar eventos y generar notificaciones simuladas (Correo, SMS y WhatsApp)   |
+| **4**  | **Clientes**       | `5004` | Ronaldo     | `ventas.db`         | Gestión de clientes, programa de fidelización, puntos e historial              |
+| **5**  | **Notificaciones** | `5005` | Fabian      | `notificaciones.db` | Escuchar eventos y generar notificaciones simuladas (Correo, SMS o WhatsApp)   |
+| **6**  | **Administración** | `5006` | Fabian      | `administración.db` | CRUD sucursales, crud empleados                                                |
 
 ---
 
