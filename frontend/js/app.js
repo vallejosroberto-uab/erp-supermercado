@@ -4,7 +4,8 @@ const API_PORTS = {
     inventario: 5002,
     productos: 5003,
     clientes: 5004,
-    notificaciones: 5005
+    notificaciones: 5005,
+    administracion: 5006
 };
 
 const BASE_URL = 'http://localhost';
