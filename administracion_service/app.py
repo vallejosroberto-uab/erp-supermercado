@@ -19,6 +19,17 @@ def get_db_connection():
 def health_check():
     return jsonify({"status": "success", "message": f"{SERVICE_NAME} OK en puerto {SERVICE_PORT}"}), 200
 
+# Ruta GET original: Para listar sucursales
+@app.route('/api/sucursal', methods=['GET'])
+def get_sucursales():
+    try:
+        # conn = get_db_connection()
+        # Lógica para consultar las sucursales...
+        return jsonify({"data": "Listado de sucursales"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Ruta POST de Kevin: Para crear sucursales y emitir eventos
 @app.route('/api/sucursal', methods=['POST'])
 def registrar_sucursal():
     try:
