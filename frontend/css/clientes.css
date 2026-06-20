@@ -1,0 +1,643 @@
+/* ============================================================
+   *** CLIENTES - ESTILOS CON PREFIJO 'cl-' ***
+   ============================================================ */
+
+/* --- Contenedor principal --- */
+.cl-module-container {
+    padding: 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    animation: cl-fadeIn 0.4s ease;
+}
+
+/* --- Header del módulo --- */
+.cl-module-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 3px solid #48bb78;
+    padding-bottom: 15px;
+}
+
+.cl-module-header h2 {
+    color: #2d3748;
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cl-module-header h2::before {
+    content: "👥";
+    font-size: 28px;
+}
+
+/* --- Barra de búsqueda --- */
+.cl-search-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+    background: #f7fafc;
+    padding: 12px;
+    border-radius: 10px;
+}
+
+.cl-search-bar input {
+    flex: 1;
+    min-width: 200px;
+    padding: 12px 18px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: white;
+    outline: none;
+}
+
+.cl-search-bar input:focus {
+    border-color: #48bb78;
+    box-shadow: 0 0 0 3px rgba(72, 187, 120, 0.2);
+    transform: scale(1.01);
+}
+
+.cl-search-bar input::placeholder {
+    color: #a0aec0;
+}
+
+/* --- Contenedor de tabla --- */
+.cl-table-container {
+    overflow-x: auto;
+    margin: 20px 0;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* --- Tabla --- */
+.cl-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    min-width: 850px;
+}
+
+.cl-data-table thead {
+    background: linear-gradient(135deg, #f7fafc, #edf2f7);
+}
+
+.cl-data-table th {
+    padding: 14px 16px;
+    text-align: left;
+    font-weight: 700;
+    color: #2d3748;
+    border-bottom: 3px solid #48bb78;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cl-data-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #edf2f7;
+    transition: background 0.2s ease;
+}
+
+.cl-data-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.cl-data-table tbody tr:hover {
+    background: #f7fafc;
+    transform: scale(1.001);
+}
+
+.cl-data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* --- Celdas especiales --- */
+.cl-puntos-cell {
+    font-weight: 700;
+    color: #d69e2e;
+    font-size: 15px;
+}
+
+.cl-puntos-cell::before {
+    content: "⭐ ";
+}
+
+/* --- Badges de estado --- */
+.cl-badge {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-block;
+    letter-spacing: 0.3px;
+    transition: all 0.3s ease;
+}
+
+.cl-badge-active {
+    background: #c6f6d5;
+    color: #22543d;
+    border: 1px solid #48bb78;
+}
+
+.cl-badge-active::before {
+    content: "✅ ";
+}
+
+.cl-badge-inactive {
+    background: #fed7d7;
+    color: #9b2c2c;
+    border: 1px solid #fc8181;
+}
+
+.cl-badge-inactive::before {
+    content: "❌ ";
+}
+
+/* --- Acciones --- */
+.cl-actions-cell {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.cl-btn-icon {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.25s ease;
+    background: #edf2f7;
+    font-weight: 600;
+    min-width: 40px;
+}
+
+.cl-btn-icon:hover {
+    transform: scale(1.12) translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.cl-btn-icon:active {
+    transform: scale(0.95);
+}
+
+.cl-btn-edit {
+    background: #ebf8ff;
+    color: #2b6cb0;
+}
+
+.cl-btn-edit:hover {
+    background: #bee3f8;
+}
+
+.cl-btn-history {
+    background: #faf5ff;
+    color: #6b46c1;
+}
+
+.cl-btn-history:hover {
+    background: #e9d8fd;
+}
+
+.cl-btn-danger {
+    background: #fff5f5;
+    color: #c53030;
+}
+
+.cl-btn-danger:hover {
+    background: #fed7d7;
+    color: #9b2c2c;
+}
+
+.cl-btn-success {
+    background: #f0fff4;
+    color: #276749;
+}
+
+.cl-btn-success:hover {
+    background: #c6f6d5;
+}
+
+/* --- Paginación --- */
+.cl-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    margin-top: 25px;
+    padding: 12px;
+    background: #f7fafc;
+    border-radius: 10px;
+}
+
+.cl-pagination button {
+    padding: 10px 24px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 700;
+    font-size: 14px;
+    color: #2d3748;
+    min-width: 100px;
+}
+
+.cl-pagination button:hover:not(:disabled) {
+    background: #48bb78;
+    color: white;
+    border-color: #48bb78;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
+}
+
+.cl-pagination button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.cl-pagination span {
+    font-weight: 700;
+    color: #2d3748;
+    font-size: 15px;
+    background: white;
+    padding: 8px 20px;
+    border-radius: 8px;
+    border: 2px solid #e2e8f0;
+    min-width: 120px;
+    text-align: center;
+}
+
+/* ============================================================
+   *** MODAL CLIENTES ***
+   ============================================================ */
+
+.cl-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    animation: cl-fadeIn 0.3s ease;
+    backdrop-filter: blur(4px);
+}
+
+.cl-modal-content {
+    background: white;
+    margin: 5% auto;
+    padding: 35px;
+    width: 92%;
+    max-width: 520px;
+    border-radius: 16px;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: cl-slideDown 0.35s ease;
+}
+
+.cl-modal-close {
+    position: absolute;
+    right: 20px;
+    top: 18px;
+    font-size: 32px;
+    font-weight: bold;
+    color: #a0aec0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    line-height: 1;
+}
+
+.cl-modal-close:hover {
+    color: #e53e3e;
+    transform: rotate(90deg);
+}
+
+.cl-modal-title {
+    color: #2d3748;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 25px;
+    padding-bottom: 12px;
+    border-bottom: 3px solid #48bb78;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* --- Formulario --- */
+.cl-form-group {
+    margin-bottom: 18px;
+}
+
+.cl-form-group label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #2d3748;
+    font-size: 14px;
+}
+
+.cl-form-group label::after {
+    content: " *";
+    color: #e53e3e;
+    font-weight: 700;
+}
+
+.cl-form-group input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+    background: #f7fafc;
+}
+
+.cl-form-group input:focus {
+    outline: none;
+    border-color: #48bb78;
+    background: white;
+    box-shadow: 0 0 0 4px rgba(72, 187, 120, 0.15);
+    transform: translateY(-1px);
+}
+
+.cl-form-group input::placeholder {
+    color: #a0aec0;
+}
+
+/* --- Botones del formulario --- */
+.cl-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 2px solid #edf2f7;
+}
+
+.cl-btn-primary {
+    padding: 12px 28px;
+    background: linear-gradient(135deg, #48bb78, #38a169);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    min-width: 120px;
+}
+
+.cl-btn-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(72, 187, 120, 0.4);
+}
+
+.cl-btn-primary:active {
+    transform: translateY(0);
+}
+
+.cl-btn-secondary {
+    padding: 12px 28px;
+    background: #edf2f7;
+    color: #2d3748;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    min-width: 120px;
+}
+
+.cl-btn-secondary:hover {
+    background: #e2e8f0;
+    transform: translateY(-2px);
+}
+
+/* --- Botones de acciones rápidas --- */
+.cl-btn-export {
+    padding: 10px 22px;
+    background: linear-gradient(135deg, #4299e1, #3182ce);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cl-btn-export:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(66, 153, 225, 0.4);
+}
+
+.cl-btn-new {
+    padding: 10px 22px;
+    background: linear-gradient(135deg, #48bb78, #38a169);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cl-btn-new:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(72, 187, 120, 0.4);
+}
+
+/* ============================================================
+   *** TEXTOS DE ESTADO ***
+   ============================================================ */
+
+.cl-loading-text {
+    text-align: center;
+    color: #a0aec0;
+    padding: 40px !important;
+    font-size: 16px;
+}
+
+.cl-empty-text {
+    text-align: center;
+    color: #a0aec0;
+    padding: 40px !important;
+    font-size: 16px;
+}
+
+.cl-error-text {
+    text-align: center;
+    color: #e53e3e;
+    padding: 40px !important;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* ============================================================
+   *** ANIMACIONES ***
+   ============================================================ */
+
+@keyframes cl-fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes cl-slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-60px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* --- Animación de filas al cargar --- */
+.cl-data-table tbody tr {
+    animation: cl-rowFadeIn 0.3s ease forwards;
+    opacity: 0;
+}
+
+.cl-data-table tbody tr:nth-child(1) { animation-delay: 0.05s; }
+.cl-data-table tbody tr:nth-child(2) { animation-delay: 0.10s; }
+.cl-data-table tbody tr:nth-child(3) { animation-delay: 0.15s; }
+.cl-data-table tbody tr:nth-child(4) { animation-delay: 0.20s; }
+.cl-data-table tbody tr:nth-child(5) { animation-delay: 0.25s; }
+.cl-data-table tbody tr:nth-child(6) { animation-delay: 0.30s; }
+.cl-data-table tbody tr:nth-child(7) { animation-delay: 0.35s; }
+.cl-data-table tbody tr:nth-child(8) { animation-delay: 0.40s; }
+.cl-data-table tbody tr:nth-child(9) { animation-delay: 0.45s; }
+.cl-data-table tbody tr:nth-child(10) { animation-delay: 0.50s; }
+
+@keyframes cl-rowFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* ============================================================
+   *** RESPONSIVE ***
+   ============================================================ */
+
+@media (max-width: 768px) {
+    .cl-module-header {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+    
+    .cl-module-header h2 {
+        font-size: 20px;
+        justify-content: center;
+    }
+    
+    .cl-search-bar {
+        flex-direction: column;
+    }
+    
+    .cl-search-bar input {
+        min-width: auto;
+    }
+    
+    .cl-data-table {
+        font-size: 13px;
+        min-width: 600px;
+    }
+    
+    .cl-data-table th,
+    .cl-data-table td {
+        padding: 10px 12px;
+    }
+    
+    .cl-pagination {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .cl-pagination button {
+        width: 100%;
+        min-width: auto;
+    }
+    
+    .cl-modal-content {
+        margin: 10% auto;
+        padding: 25px;
+        width: 95%;
+    }
+    
+    .cl-form-actions {
+        flex-direction: column;
+    }
+    
+    .cl-form-actions button {
+        width: 100%;
+    }
+    
+    .cl-actions-cell {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .cl-module-container {
+        padding: 10px;
+    }
+    
+    .cl-data-table {
+        font-size: 12px;
+        min-width: 500px;
+    }
+    
+    .cl-data-table th,
+    .cl-data-table td {
+        padding: 8px 10px;
+    }
+    
+    .cl-btn-icon {
+        font-size: 14px;
+        padding: 4px 8px;
+        min-width: 32px;
+    }
+    
+    .cl-modal-content {
+        margin: 5% auto;
+        padding: 20px;
+    }
+}
