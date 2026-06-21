@@ -7,6 +7,7 @@ import re
 import uuid
 import csv
 import io
+import math
 from datetime import datetime
 
 app = Flask(__name__)
@@ -142,7 +143,7 @@ def buscar_clientes():
         cursor = conn.cursor()
         
         query = """SELECT * FROM clientes 
-                   WHERE estado = 1 AND (
+                   WHERE estado = 'activo' AND (
                        nombre LIKE ? OR 
                        correo LIKE ? OR 
                        telefono LIKE ? OR 
@@ -171,7 +172,7 @@ def crear_cliente():
         data = request.json
         
         # Validar campos requeridos
-        campos_requeridos = ['nombre', 'telefono', 'correo', 'nit_ci']
+        campos_requeridos = ['nombre', 'telefono', 'nit_ci']
         for campo in campos_requeridos:
             if not data.get(campo) or str(data.get(campo)).strip() == '':
                 return jsonify({"error": f"El campo '{campo}' es requerido"}), 400
@@ -179,19 +180,24 @@ def crear_cliente():
         # Sanitizar entradas (prevenir XSS)
         nombre = html.escape(data['nombre'].strip())
         telefono = html.escape(data['telefono'].strip())
-        correo = html.escape(data['correo'].strip())
+        # correo = html.escape(data['correo'].strip())
+        correo = data.get('correo', '').strip()
+        correo = correo if correo != '' else None
         nit_ci = html.escape(data['nit_ci'].strip())
         # estado = html.escape(data['estado'].strip())
         
         estado = data.get('estado', 'activo').strip().lower()
+        
+        
 
         if estado not in ['activo', 'inactivo']:
             return jsonify({
                 "error": "Estado inválido. Debe ser 'activo' o 'inactivo'"
             }), 400
         # Validar formato de correo
-        if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', correo):
-            return jsonify({"error": "Formato de correo inválido"}), 400
+        if correo:
+            if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', correo):
+                return jsonify({"error": "Formato de correo inválido"}), 400
         
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -464,7 +470,7 @@ def consultar_puntos(id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, nombre, puntos FROM clientes WHERE id = ? AND estado = 'activo'", (id,))
+        cursor.execute("SELECT id, nombre, puntos FROM clientes WHERE id = ?", (id,))
         cliente = cursor.fetchone()
         conn.close()
         
@@ -671,7 +677,7 @@ def historial_ventas_cliente(id):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT id, nombre FROM clientes WHERE id = ? AND estado = 'activo'", (id,))
+        cursor.execute("SELECT id, nombre FROM clientes WHERE id = ?", (id,))
         cliente = cursor.fetchone()
         if not cliente:
             conn.close()
@@ -1117,8 +1123,471 @@ def exportar_clientes():
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+# ============================================================
+# GRUPO 6: HISTORIAL Y ESTADÍSTICAS (VENTAS)
+# ============================================================
 
+@app.route('/api/clientes/uid/<string:uid>/historial/ventas', methods=['GET'])
+def historial_ventas_cliente_uid(uid):
+    """Historial de ventas del cliente por UID"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, nombre FROM clientes WHERE uid = ? AND estado = 'activo'", (uid,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        cliente_id = cliente['id']
+        conn.close()
+        
+        return historial_ventas_cliente(cliente_id)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+@app.route('/api/clientes/uid/<string:uid>/historial/facturas', methods=['GET'])
+def historial_facturas_cliente_uid(uid):
+    """Facturas emitidas al cliente por UID"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id FROM clientes WHERE uid = ? AND estado = 'activo'", (uid,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        conn.close()
+        return historial_facturas_cliente(cliente['id'])
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+@app.route('/api/clientes/uid/<string:uid>/estadisticas', methods=['GET'])
+def estadisticas_cliente_uid(uid):
+    """Estadísticas por UID de cliente"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id FROM clientes WHERE uid = ?", (uid,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        conn.close()
+        return estadisticas_cliente(cliente['id'])
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500    
+@app.route('/api/clientes/uid/<string:uid>/ultima-compra', methods=['GET'])
+def ultima_compra_cliente_uid(uid):
+    """Última compra por UID de cliente"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id FROM clientes WHERE uid = ? AND estado = 'activo'", (uid,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        conn.close()
+        return ultima_compra_cliente(cliente['id'])
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+# ============================================================
+# 6.1. ENDPOINTS PARA MODIFICAR contador_compras
+# ============================================================
 
+@app.route('/api/clientes/<int:id>/contador-compras', methods=['PUT'])
+def actualizar_contador_compras(id):
+    """Actualizar contador_compras manualmente"""
+    try:
+        data = request.json
+        nuevo_valor = data.get('contador_compras')
+        
+        if nuevo_valor is None or nuevo_valor < 0:
+            return jsonify({"error": "El contador_compras debe ser un número mayor o igual a 0"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, nombre, contador_compras FROM clientes WHERE id = ?", (id,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        valor_anterior = cliente['contador_compras']
+        
+        cursor.execute("""
+            UPDATE clientes 
+            SET contador_compras = ?, actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (nuevo_valor, id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "mensaje": "Contador de compras actualizado",
+            "cliente_id": id,
+            "valor_anterior": valor_anterior,
+            "valor_actual": nuevo_valor
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
+@app.route('/api/clientes/uid/<string:uid>/contador-compras', methods=['PUT'])
+def actualizar_contador_compras_uid(uid):
+    """Actualizar contador_compras por UID"""
+    try:
+        data = request.json
+        nuevo_valor = data.get('contador_compras')
+        
+        if nuevo_valor is None or nuevo_valor < 0:
+            return jsonify({"error": "El contador_compras debe ser un número mayor o igual a 0"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id FROM clientes WHERE uid = ?", (uid,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        conn.close()
+        return actualizar_contador_compras(cliente['id'])
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/contador-compras/incrementar', methods=['POST'])
+def incrementar_contador_compras(id):
+    """Incrementar contador_compras en +1 (o cantidad personalizada)"""
+    try:
+        data = request.json or {}
+        cantidad = data.get('cantidad', 1)
+        
+        if cantidad <= 0:
+            return jsonify({"error": "La cantidad debe ser mayor a 0"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, nombre, contador_compras FROM clientes WHERE id = ?", (id,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        valor_anterior = cliente['contador_compras']
+        nuevo_valor = valor_anterior + cantidad
+        
+        cursor.execute("""
+            UPDATE clientes 
+            SET contador_compras = contador_compras + ?, actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (cantidad, id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "mensaje": f"Contador de compras incrementado en {cantidad}",
+            "cliente_id": id,
+            "valor_anterior": valor_anterior,
+            "valor_actual": nuevo_valor,
+            "incremento": cantidad
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/contador-compras/decrementar', methods=['POST'])
+def decrementar_contador_compras(id):
+    """Decrementar contador_compras en -1 (o cantidad personalizada)"""
+    try:
+        data = request.json or {}
+        cantidad = data.get('cantidad', 1)
+        
+        if cantidad <= 0:
+            return jsonify({"error": "La cantidad debe ser mayor a 0"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, nombre, contador_compras FROM clientes WHERE id = ?", (id,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        if cliente['contador_compras'] < cantidad:
+            conn.close()
+            return jsonify({"error": f"El contador no puede ser negativo. Actual: {cliente['contador_compras']}"}), 400
+        
+        valor_anterior = cliente['contador_compras']
+        nuevo_valor = valor_anterior - cantidad
+        
+        cursor.execute("""
+            UPDATE clientes 
+            SET contador_compras = contador_compras - ?, actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (cantidad, id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "mensaje": f"Contador de compras decrementado en {cantidad}",
+            "cliente_id": id,
+            "valor_anterior": valor_anterior,
+            "valor_actual": nuevo_valor,
+            "decremento": cantidad
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/contador-compras/reiniciar', methods=['POST'])
+def reiniciar_contador_compras(id):
+    """Reiniciar contador_compras a 0"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, nombre, contador_compras FROM clientes WHERE id = ?", (id,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        valor_anterior = cliente['contador_compras']
+        
+        cursor.execute("""
+            UPDATE clientes 
+            SET contador_compras = 0, actualizado_en = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "mensaje": "Contador de compras reiniciado a 0",
+            "cliente_id": id,
+            "valor_anterior": valor_anterior,
+            "valor_actual": 0
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/contador-compras', methods=['GET'])
+def obtener_contador_compras(id):
+    """Obtener contador_compras de un cliente"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, nombre, contador_compras FROM clientes WHERE id = ?", (id,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "cliente_id": cliente['id'],
+            "nombre": cliente['nombre'],
+            "contador_compras": cliente['contador_compras']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/clientes/uid/<string:uid>/contador-compras', methods=['GET'])
+def obtener_contador_compras_uid(uid):
+    """Obtener contador_compras por UID de cliente"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, nombre, contador_compras FROM clientes WHERE uid = ?", (uid,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            conn.close()
+            return jsonify({"error": "Cliente no encontrado"}), 404
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "cliente_uid": uid,
+            "cliente_id": cliente['id'],
+            "nombre": cliente['nombre'],
+            "contador_compras": cliente['contador_compras']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/clientes/contador-compras/promedio', methods=['GET'])
+def promedio_contador_compras():
+    """Promedio de compras de todos los clientes activos"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                AVG(contador_compras) as promedio,
+                COUNT(*) as total_clientes,
+                SUM(contador_compras) as total_compras
+            FROM clientes 
+            WHERE estado = 'activo'
+        """)
+        
+        resultado = cursor.fetchone()
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "promedio_compras": round(resultado['promedio'] or 0, 2),
+            "total_clientes": resultado['total_clientes'] or 0,
+            "total_compras": resultado['total_compras'] or 0
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/clientes/contador-compras/total', methods=['GET'])
+def total_contador_compras():
+    """Total de compras de todos los clientes activos"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT SUM(contador_compras) as total_compras
+            FROM clientes 
+            WHERE estado = 'activo'
+        """)
+        
+        resultado = cursor.fetchone()
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "total_compras": resultado['total_compras'] or 0
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+@app.route('/api/clientes/analisis/compras', methods=['GET'])
+def analisis_compras_por_fechas():
+    """Analisis de compras por rango de fechas"""
+    try:
+        desde = request.args.get('desde')
+        hasta = request.args.get('hasta')
+        
+        if not desde or not hasta:
+            return jsonify({"error": "Los parámetros 'desde' y 'hasta' son requeridos"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Obtener todos los clientes activos
+        cursor.execute("SELECT id, nombre, uid FROM clientes WHERE estado = 'activo'")
+        clientes = cursor.fetchall()
+        
+        resultados = []
+        total_general_compras = 0
+        total_general_gastado = 0
+        total_general_puntos = 0
+        
+        for cliente in clientes:
+            # Obtener ventas del cliente en el rango de fechas
+            cursor.execute("""
+                SELECT 
+                    v.id, 
+                    v.uid,
+                    v.total_centavos, 
+                    v.creado_en,
+                    v.estado,
+                    v.tipo_venta,
+                    f.numero_factura,
+                    (SELECT COUNT(*) FROM detalle_ventas WHERE venta_id = v.id) as total_productos
+                FROM ventas v
+                LEFT JOIN facturas f ON v.id = f.venta_id
+                WHERE v.cliente_id = ? 
+                    AND DATE(v.creado_en) >= DATE(?)
+                    AND DATE(v.creado_en) <= DATE(?)
+                    AND v.estado = 'confirmada'
+                ORDER BY v.creado_en DESC
+            """, (cliente['id'], desde, hasta))
+            
+            ventas = cursor.fetchall()
+            
+            if ventas:
+                total_compras = len(ventas)
+                total_gastado = sum(v['total_centavos'] or 0 for v in ventas)
+                puntos_generados = sum(math.floor((v['total_centavos'] or 0) / 1000) for v in ventas)
+                
+                ventas_list = []
+                for v in ventas:
+                    venta_dict = dict(v)
+                    if venta_dict.get('total_centavos'):
+                        venta_dict['total_bs'] = f"{venta_dict['total_centavos'] / 100:.2f}"
+                    ventas_list.append(venta_dict)
+                
+                resultados.append({
+                    "cliente_id": cliente['id'],
+                    "cliente_nombre": cliente['nombre'],
+                    "cliente_uid": cliente['uid'],
+                    "total_compras": total_compras,
+                    "total_gastado_centavos": total_gastado,
+                    "total_gastado_bs": f"{total_gastado / 100:.2f}",
+                    "puntos_generados": puntos_generados,
+                    "promedio_gasto_bs": f"{(total_gastado / total_compras) / 100:.2f}",
+                    "ventas": ventas_list
+                })
+                
+                total_general_compras += total_compras
+                total_general_gastado += total_gastado
+                total_general_puntos += puntos_generados
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "data": resultados,
+            "resumen": {
+                "total_clientes_con_compras": len(resultados),
+                "total_compras": total_general_compras,
+                "total_gastado_centavos": total_general_gastado,
+                "total_gastado_bs": f"{total_general_gastado / 100:.2f}",
+                "total_puntos_generados": total_general_puntos
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 if __name__ == '__main__':
     app.run(debug=True, port=SERVICE_PORT)

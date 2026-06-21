@@ -1,0 +1,1168 @@
+{
+  "info": {
+    "_postman_id": "8f8bdc56-089e-4653-9c92-7cb124fb90eb",
+    "name": "ERP-UAB22",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "23650432"
+  },
+  "item": [
+    {
+      "name": "CRUD",
+      "item": [
+        {
+          "name": "Listar todos los clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener cliente por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener cliente por UID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/uid/CLI-JUANITO-001",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "uid",
+                "CLI-JUANITO-001"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar por Valor Cliente AR",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/buscar?q=juan",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "buscar"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "juan"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Crear nuevo cliente",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"nombre\": \"Ana darpane\",\r\n    \"telefono\": \"3455\",\r\n    \"correo\": \"sopa.rodriguez@email.com\",\r\n    \"nit_ci\": \"12392\",\r\n    \"estado\": \"activo\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar cliente (por ID)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"nombre\": \"Ana Rodriguez Actualizado\",\r\n    \"telefono\": \"76543210\",\r\n    \"correo\": \"ana.perez@email.com\",\r\n    \"nit_ci\": \"12343\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/3",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "3"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar cliente (por UID)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"nombre\": \"Ana Actualizado\",\r\n    \"telefono\": \"76510\",\r\n    \"correo\": \"ana.pz@email.com\",\r\n    \"nit_ci\": \"12343992\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/uid/38ac658a-686a-479f-9c78-c57d0b1ec1d4",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "uid",
+                "38ac658a-686a-479f-9c78-c57d0b1ec1d4"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Eliminar cliente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/3",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "3"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Activar/desactivar cliente",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"estado\":\"activo\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/3/estado",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "3",
+                "estado"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Puntos",
+      "item": [
+        {
+          "name": "Consultar puntos acumulados",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/3/puntos",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "3",
+                "puntos"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar puntos por UID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/uid/CLI-JUANITO-001/puntos",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "uid",
+                "CLI-JUANITO-001",
+                "puntos"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Sumar puntos (por compras)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"puntos\":10,\r\n    \"descripcion\":\"Compra realizada\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/3/puntos/sumar",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "3",
+                "puntos",
+                "sumar"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Restar puntos (por canje)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"puntos\":5,\r\n    \"descripcion\":\"Canje de puntos\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/3/puntos/restar",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "3",
+                "puntos",
+                "restar"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Top clientes con más puntos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/top-puntos",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "top-puntos"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Top clientes por contador_compras",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/top-compras",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "top-compras"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "HistorialEstadísticas",
+      "item": [
+        {
+          "name": "Historial de ventas del cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/historial/ventas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "historial",
+                "ventas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resumen de compras agrupadas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/historial/compras",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "historial",
+                "compras"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Facturas emitidas al cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/historial/facturas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "historial",
+                "facturas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Estadísticas completas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/estadisticas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "estadisticas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Estadísticas por UID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/uid/CLI-JUANITO-001/estadisticas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "uid",
+                "CLI-JUANITO-001",
+                "estadisticas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Última compra realizada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/ultima-compra",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "ultima-compra"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Eventos",
+      "item": [
+        {
+          "name": "Escuchar evento de venta finalizada",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"cliente_id\":1,\r\n    \"venta_id\":100,\r\n    \"total_centavos\":5000,\r\n    \"puntos_ganados\":10\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/eventos/venta-finalizada",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "eventos",
+                "venta-finalizada"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Sincronizar puntos desde otro servicio",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"cliente_id\":1,\r\n    \"puntos\":150\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/eventos/puntos-actualizados",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "eventos",
+                "puntos-actualizados"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Health check de eventos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/eventos/health",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "eventos",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Validaciones",
+      "item": [
+        {
+          "name": "Verificar si correo ya existe",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/verificar/correo?correo=juanito@email.com",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "verificar",
+                "correo"
+              ],
+              "query": [
+                {
+                  "key": "correo",
+                  "value": "juanito@email.com"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verificar si NIT/CI ya existe",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/verificar/nit-ci?nit_ci=123456",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "verificar",
+                "nit-ci"
+              ],
+              "query": [
+                {
+                  "key": "nit_ci",
+                  "value": "123456"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verificar si teléfono ya existe",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/verificar/telefono?telefono=2434333",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "verificar",
+                "telefono"
+              ],
+              "query": [
+                {
+                  "key": "telefono",
+                  "value": "2434333"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Exportar clientes a Excel/CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/exportar",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "exportar"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Ventas",
+      "item": [
+        {
+          "name": "Historial de ventas del cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/historial/ventas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "historial",
+                "ventas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Historial de ventas por UID de cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/uid/2ac168bc-12cb-43da-a3fd-fcc8070d1aba/historial/ventas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "uid",
+                "2ac168bc-12cb-43da-a3fd-fcc8070d1aba",
+                "historial",
+                "ventas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resumen de compras agrupadas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/2/historial/compras",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "2",
+                "historial",
+                "compras"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Facturas emitidas al cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/historial/facturas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "historial",
+                "facturas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Facturas por UID de cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/uid/2ac168bc-12cb-43da-a3fd-fcc8070d1aba/historial/facturas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "uid",
+                "2ac168bc-12cb-43da-a3fd-fcc8070d1aba",
+                "historial",
+                "facturas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Estadísticas completas (ventas + cliente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/estadisticas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "estadisticas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Estadísticas por UID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/uid/ac168bc-12cb-43da-a3fd-fcc8070d1aba/estadisticas",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "uid",
+                "ac168bc-12cb-43da-a3fd-fcc8070d1aba",
+                "estadisticas"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Última compra realizada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/ultima-compra",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "ultima-compra"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Última compra por UID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/uid/2ac168bc-12cb-43da-a3fd-fcc8070d1aba/ultima-compra",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "uid",
+                "2ac168bc-12cb-43da-a3fd-fcc8070d1aba",
+                "ultima-compra"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar contador_compras manualmente",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"contador_compras\": 15\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/contador-compras",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "contador-compras"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar contador_compras por UID",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"contador_compras\": 20\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/uid/<string:uid>/contador-compras",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "uid",
+                "<string:uid>",
+                "contador-compras"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Incrementar contador_compras en +1",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"cantidad\": 5\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/2/contador-compras/incrementar",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "2",
+                "contador-compras",
+                "incrementar"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Decrementar contador_compras en -1",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"cantidad\": 4\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/2/contador-compras/decrementar",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "2",
+                "contador-compras",
+                "decrementar"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reiniciar contador_compras a 0",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"contador_compras\":15\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/2/contador-compras/reiniciar",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "2",
+                "contador-compras",
+                "reiniciar"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener contador",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/1/contador-compras",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "1",
+                "contador-compras"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Promedio global",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/contador-compras/promedio",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "contador-compras",
+                "promedio"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Total global",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BaseURL}}/api/clientes/contador-compras/total",
+              "host": [
+                "{{BaseURL}}"
+              ],
+              "path": [
+                "api",
+                "clientes",
+                "contador-compras",
+                "total"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Estado",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BaseURL}}/api/health",
+          "host": [
+            "{{BaseURL}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Historial Filtro Fechas Compra",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BaseURL}}/api/clientes/analisis/compras?desde=2022-01-01&hasta=2026-12-21",
+          "host": [
+            "{{BaseURL}}"
+          ],
+          "path": [
+            "api",
+            "clientes",
+            "analisis",
+            "compras"
+          ],
+          "query": [
+            {
+              "key": "desde",
+              "value": "2022-01-01"
+            },
+            {
+              "key": "hasta",
+              "value": "2026-12-21"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "BaseURL",
+      "value": ""
+    }
+  ]
+}

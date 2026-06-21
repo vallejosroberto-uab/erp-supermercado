@@ -35,8 +35,8 @@ async function apiCall(servicePort, route, method = 'GET', bodyData = null) {
         return await response.json();
     } catch (error) {
         console.error(`Fallo en la petición a ${url}:`, error);
-        alert("Error de conexión con el servicio. Revisa la consola.");
-        throw error;
+        // alert("Error de conexión con el servicio. Revisa la consola.");
+        // throw error;
     }
 }
 
