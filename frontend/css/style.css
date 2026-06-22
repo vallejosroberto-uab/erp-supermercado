@@ -245,6 +245,31 @@ td {
     color: #666;
 }
 
+.status.procesado,
+.status.enviada {
+    background: #e6f4ea;
+    color: #1b5e20;
+}
+
+.status.pendiente,
+.status.generada {
+    background: #fff4d6;
+    color: #7a4f00;
+}
+
+.status.error {
+    background: #fdecea;
+    color: #a22820;
+}
+
+.notifications-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.subscribers-panel {
+    grid-column: 1 / -1;
+}
+
 .row-actions {
     display: flex;
     gap: 8px;
@@ -274,6 +299,7 @@ td {
     body { flex-direction: column; height: auto; min-height: 100vh; }
     .sidebar { width: 100%; }
     .admin-toolbar { align-items: flex-start; flex-direction: column; }
-    .admin-grid { grid-template-columns: 1fr; }
+    .admin-grid,
+    .notifications-grid { grid-template-columns: 1fr; }
     .content-area { padding: 18px; }
 }
