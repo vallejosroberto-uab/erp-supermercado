@@ -53,6 +53,11 @@ function loadModule(moduleName, buttonElement) {
     
     // 3. Cargar la vista correspondiente
     const contentArea = document.getElementById('main-content');
+
+    if (moduleName === 'ventas' && typeof renderVentasModule === 'function') {
+        renderVentasModule();
+        return;
+    }
     
     // MOCKUP temporal para guiar a los desarrolladores:
     contentArea.innerHTML = `
