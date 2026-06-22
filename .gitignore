@@ -22,4 +22,4 @@ Thumbs.db
 .vscode/
 
 # Logs
-*.log
+*.log*.db
