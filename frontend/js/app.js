@@ -59,36 +59,6 @@ async function apiCall(servicePort, route, method = 'GET', bodyData = null) {
 // LÓGICA DE NAVEGACIÓN Y VISTAS DE LA SPA
 // =========================================================
 function loadModule(moduleName, buttonElement) {
-    // 1. UI del menú
-    document.querySelectorAll('.nav-btn')
-        .forEach(btn => btn.classList.remove('active'));
-
-    buttonElement.classList.add('active');
-
-    // 2. Título
-    document.getElementById('module-title').innerText =
-        `Módulo de ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}`;
-
-    // 3. Contenido dinámico
-    const contentArea = document.getElementById('main-content');
-
-    switch (moduleName) {
-
-        case "productos":
-            loadProductosModule();
-            break;
-        default:
-            contentArea.innerHTML = `
-                <div style="background:white;padding:20px;border-radius:8px;">
-                    <h4>Área de trabajo de ${moduleName}</h4>
-                    <p>La API corre en: <b>${BASE_URL}:${API_PORTS[moduleName]}</b></p>
-                    <button onclick="testConnection('${moduleName}')">
-                        Probar conexión
-                    </button>
-                </div>
-            `;
-    }
-}
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     buttonElement.classList.add('active');
 
@@ -131,6 +101,9 @@ function loadModule(moduleName, buttonElement) {
                 cargarVistaClientes();
             }
             break;
+        case "productos":
+            loadProductosModule();
+            break;
             
         default:
             contentArea.innerHTML = `
@@ -141,13 +114,7 @@ function loadModule(moduleName, buttonElement) {
                 </div>
             `;
     }
-    contentArea.innerHTML = `
-        <section class="module-card">
-            <h4>Área de trabajo del Dev asignado a ${moduleName}</h4>
-            <p>La API de este servicio corre en: <strong>${BASE_URL}:${API_PORTS[moduleName]}</strong></p>
-            <button class="primary-btn" onclick="testConnection('${moduleName}')">Probar Conexión Backend</button>
-        </section>
-    `;
+
 }
 
 // =========================================================
