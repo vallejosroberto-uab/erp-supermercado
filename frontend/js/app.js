@@ -30,7 +30,7 @@ async function apiCall(servicePort, route, method = 'GET', bodyData = null) {
         }
     };
 
-    if (bodyData && ['POST', 'PUT', 'PATCH'].includes(method)) {
+    if (bodyData && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
         options.body = JSON.stringify(bodyData);
     }
 
@@ -45,7 +45,8 @@ async function apiCall(servicePort, route, method = 'GET', bodyData = null) {
         return data;
     } catch (error) {
         console.error(`Fallo en la petición a ${url}:`, error);
-        throw error;
+        // alert("Error de conexión con el servicio. Revisa la consola.");
+        // throw error;
     }
 }
 
@@ -65,6 +66,41 @@ function loadModule(moduleName, buttonElement) {
     }
 
     const contentArea = document.getElementById('main-content');
+    
+    // MOCKUP temporal para guiar a los desarrolladores:
+    // contentArea.innerHTML = `
+    //     <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    //         <h4>Área de trabajo del Dev asignado a ${moduleName}</h4>
+    //         <p style="margin-top: 10px;">La API de este servicio corre en: <strong>${BASE_URL}:${API_PORTS[moduleName]}</strong></p>
+    //         <button onclick="testConnection('${moduleName}')" style="margin-top:15px; padding:8px 15px; background:var(--primary-color); border:none; border-radius:4px; cursor:pointer; color:white;">Probar Conexión Backend</button>
+    //     </div>
+    // `;
+        // *** CARGA DE MÓDULOS ***
+    switch(moduleName) {
+        case 'clientes':
+            if (typeof cargarVistaClientes === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'modules/clientes.js';
+                script.onload = () => {
+                    if (typeof cargarVistaClientes === 'function') {
+                        cargarVistaClientes();
+                    }
+                };
+                document.head.appendChild(script);
+            } else {
+                cargarVistaClientes();
+            }
+            break;
+            
+        default:
+            contentArea.innerHTML = `
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <h4>Área de trabajo del Dev asignado a ${moduleName}</h4>
+                    <p style="margin-top: 10px;">La API de este servicio corre en: <strong>${BASE_URL}:${API_PORTS[moduleName]}</strong></p>
+                    <button onclick="testConnection('${moduleName}')" style="margin-top:15px; padding:8px 15px; background:var(--primary-color); border:none; border-radius:4px; cursor:pointer; color:white;">Probar Conexión Backend</button>
+                </div>
+            `;
+    }
     contentArea.innerHTML = `
         <section class="module-card">
             <h4>Área de trabajo del Dev asignado a ${moduleName}</h4>
@@ -412,6 +448,11 @@ async function testConnection(moduleName) {
     }
 }
 
+// Cargar vista inicial al iniciar la app
+// window.onload = () => {
+//     loadModule('ventas', document.querySelector('.nav-btn'));
+// };
+// Cargar vista inicial al iniciar la app
 // Cargar vista inicial al iniciar la app
 window.onload = () => {
     loadModule('ventas', document.querySelector('.nav-btn'));
