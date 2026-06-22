@@ -44,26 +44,36 @@ async function apiCall(servicePort, route, method = 'GET', bodyData = null) {
 // LÓGICA DE NAVEGACIÓN Y VISTAS DE LA SPA
 // =========================================================
 function loadModule(moduleName, buttonElement) {
-    // 1. Actualizar UI del menú
-    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-    buttonElement.classList.add('active');
-    
-    // 2. Actualizar Título
-    document.getElementById('module-title').innerText = `Módulo de ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}`;
-    
-    // 3. Cargar la vista correspondiente
-    const contentArea = document.getElementById('main-content');
-    
-    // MOCKUP temporal para guiar a los desarrolladores:
-    contentArea.innerHTML = `
-        <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h4>Área de trabajo del Dev asignado a ${moduleName}</h4>
-            <p style="margin-top: 10px;">La API de este servicio corre en: <strong>${BASE_URL}:${API_PORTS[moduleName]}</strong></p>
-            <button onclick="testConnection('${moduleName}')" style="margin-top:15px; padding:8px 15px; background:var(--primary-color); border:none; border-radius:4px; cursor:pointer; color:white;">Probar Conexión Backend</button>
-        </div>
-    `;
-}
+    // 1. UI del menú
+    document.querySelectorAll('.nav-btn')
+        .forEach(btn => btn.classList.remove('active'));
 
+    buttonElement.classList.add('active');
+
+    // 2. Título
+    document.getElementById('module-title').innerText =
+        `Módulo de ${moduleName.charAt(0).toUpperCase() + moduleName.slice(1)}`;
+
+    // 3. Contenido dinámico
+    const contentArea = document.getElementById('main-content');
+
+    switch (moduleName) {
+
+        case "productos":
+            loadProductosModule();
+            break;
+        default:
+            contentArea.innerHTML = `
+                <div style="background:white;padding:20px;border-radius:8px;">
+                    <h4>Área de trabajo de ${moduleName}</h4>
+                    <p>La API corre en: <b>${BASE_URL}:${API_PORTS[moduleName]}</b></p>
+                    <button onclick="testConnection('${moduleName}')">
+                        Probar conexión
+                    </button>
+                </div>
+            `;
+    }
+}
 // =========================================================
 // PRUEBA DE CONEXIÓN UTILIZANDO LA NUEVA FUNCIÓN GLOBAL
 // =========================================================
