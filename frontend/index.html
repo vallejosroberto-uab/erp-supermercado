@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Abuelita Serafina - ERP</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/clientes.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -14,8 +16,9 @@
 
     <nav class="sidebar">
         <h2>Serafina ERP</h2>
-        <button class="nav-btn active" onclick="loadModule('ventas', this)">🛒 Ventas</button>
-        <button class="nav-btn" onclick="loadModule('inventario', this)">📦 Inventario</button>
+
+        <button class="nav-btn" onclick="loadModule('ventas', this)">🛒 Ventas</button>
+        <button class="nav-btn active" onclick="loadModule('inventario', this)">📦 Inventario</button>
         <button class="nav-btn" onclick="loadModule('productos', this)">🏷️ Productos</button>
         <button class="nav-btn" onclick="loadModule('clientes', this)">👥 Clientes</button>
         <button class="nav-btn" onclick="loadModule('notificaciones', this)">🔔 Notificaciones</button>
@@ -24,12 +27,165 @@
 
     <div class="main-wrapper">
         <header class="header">
-            <h3 id="module-title" style="color: var(--accent-color);">Módulo de Ventas</h3>
+            <h3 id="module-title" style="color: var(--accent-color);">Módulo de Inventario</h3>
         </header>
+
         <main class="content-area" id="main-content">
             <p>Cargando módulo...</p>
         </main>
     </div>
+
+    <!-- PLANTILLA DEL MÓDULO DE INVENTARIO -->
+    <div id="plantilla-html-inventario" style="display: none;">
+        <div class="container-fluid py-3">
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="fw-bold text-success m-0">Panel de Control de Inventarios</h4>
+
+                <div>
+                    <input type="file" id="input-file-excel" accept=".xlsx" style="display: none;">
+
+                    <button id="btn-importar-excel" class="btn btn-success shadow-sm">
+                        📊 Importar Inventario Excel
+                    </button>
+
+                    <button id="btn-ver-movimientos" class="btn btn-info text-white ms-2">
+                        🕒 Ver Movimientos
+                    </button>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+
+                <!-- RECEPCIÓN DE STOCK -->
+                <div class="col-md-4">
+                    <div class="card h-100 p-3 shadow-sm border-0">
+                        <h6 class="text-primary fw-bold mb-3">📥 Recepción de Stock</h6>
+
+                        <form id="form-inventario-ingreso">
+                            <select id="select-ingreso-sucursal" class="form-select form-select-sm mb-2" required>
+                                <option value="">1. Seleccionar Sucursal</option>
+                            </select>
+
+                            <select id="select-ingreso-producto" class="form-select form-select-sm mb-2" required>
+                                <option value="">2. Seleccionar Producto</option>
+                            </select>
+
+                            <input 
+                                type="number" 
+                                id="input-cantidad" 
+                                class="form-control form-control-sm mb-3" 
+                                placeholder="Cantidad a Ingresar" 
+                                min="1" 
+                                required
+                            >
+
+                            <button type="submit" class="btn btn-primary btn-sm w-100">
+                                Confirmar Ingreso
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- SALIDAS / MERMAS -->
+                <div class="col-md-4">
+                    <div class="card h-100 p-3 shadow-sm border-0">
+                        <h6 class="text-danger fw-bold mb-3">📤 Salidas / Mermas</h6>
+
+                        <form id="form-inventario-baja">
+                            <select id="select-baja-sucursal" class="form-select form-select-sm mb-2" required>
+                                <option value="">1. Seleccionar Sucursal</option>
+                            </select>
+
+                            <select id="select-baja-producto" class="form-select form-select-sm mb-2" required>
+                                <option value="">2. Seleccionar Producto</option>
+                            </select>
+
+                            <input 
+                                type="number" 
+                                id="baja-cantidad" 
+                                class="form-control form-control-sm mb-3" 
+                                placeholder="Cantidad a dar de Baja" 
+                                min="1" 
+                                required
+                            >
+
+                            <button type="submit" class="btn btn-danger btn-sm w-100">
+                                Procesar Salida
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- TRANSFERENCIAS -->
+                <div class="col-md-4">
+                    <div class="card h-100 p-3 shadow-sm border-0">
+                        <h6 class="text-warning fw-bold mb-3">🚚 Transferencias</h6>
+
+                        <form id="form-inventario-transferencia">
+                            <select id="select-transfer-origen" class="form-select form-select-sm mb-2" required>
+                                <option value="">1. Sucursal Origen</option>
+                            </select>
+
+                            <select id="select-transfer-producto" class="form-select form-select-sm mb-2" required>
+                                <option value="">2. Producto</option>
+                            </select>
+
+                            <select id="select-transfer-destino" class="form-select form-select-sm mb-2" required>
+                                <option value="">3. Sucursal Destino</option>
+                            </select>
+
+                            <input 
+                                type="number" 
+                                id="transfer-cantidad" 
+                                class="form-control form-control-sm mb-3" 
+                                placeholder="Cantidad a Transferir" 
+                                min="1" 
+                                required
+                            >
+
+                            <button type="submit" class="btn btn-warning btn-sm w-100">
+                                Ejecutar Envío
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- TABLA DE INVENTARIO -->
+            <div class="card shadow-sm border-0 p-3">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>ID</th>
+                                <th>Producto</th>
+                                <th>Código</th>
+                                <th>Sucursal</th>
+                                <th class="text-center">Stock</th>
+                                <th class="text-center">Reservado</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="tabla-inventario-body">
+                        </tbody>
+                    </table>
+                </div>
+
+                <nav>
+                    <ul class="pagination pagination-sm justify-content-center" id="paginacion-inventario"></ul>
+                </nav>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/app.js"></script>
+    <script src="modules/inventario.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="js/app.js"></script>
