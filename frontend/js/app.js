@@ -76,6 +76,11 @@ function loadModule(moduleName, buttonElement) {
     }
 
     const contentArea = document.getElementById('main-content');
+
+    if (moduleName === 'ventas' && typeof renderVentasModule === 'function') {
+        renderVentasModule();
+        return;
+    }
     
     // MOCKUP temporal para guiar a los desarrolladores:
     // contentArea.innerHTML = `
