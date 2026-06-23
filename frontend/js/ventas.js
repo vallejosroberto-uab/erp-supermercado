@@ -102,6 +102,7 @@ function mostrarVistaVentas(vista) {
     if (reportesPanel) reportesPanel.hidden = vista !== 'reportes';
 
     if (vista === 'reportes' && !ventasState.reporte) {
+        toggleReportePeriodo();
         cargarReporteVentas();
     }
 }
@@ -121,7 +122,7 @@ function renderReportesPanel() {
         <div class="report-filter">
             <label>
                 Tipo
-                <select id="reporte-tipo" onchange="toggleReportePeriodo()">
+                <select id="reporte-tipo" onchange="toggleReportePeriodo()" oninput="toggleReportePeriodo()">
                     <option value="dia">Reporte del dia</option>
                     <option value="mes">Reporte por mes</option>
                     <option value="rango">Reporte por rango</option>
@@ -156,10 +157,16 @@ function toggleReportePeriodo() {
     const mesField = document.getElementById('reporte-mes-field');
     const inicioField = document.getElementById('reporte-inicio-field');
     const finField = document.getElementById('reporte-fin-field');
+    const contenido = document.getElementById('ventas-reporte-contenido');
     if (fechaField) fechaField.hidden = tipo !== 'dia';
     if (mesField) mesField.hidden = tipo !== 'mes';
     if (inicioField) inicioField.hidden = tipo !== 'rango';
     if (finField) finField.hidden = tipo !== 'rango';
+    if (contenido && !ventasState.reporte) {
+        contenido.innerHTML = tipo === 'rango'
+            ? '<p class="muted">Selecciona fecha desde y hasta para consultar el reporte.</p>'
+            : '<p class="muted">Selecciona un periodo y consulta el reporte.</p>';
+    }
 }
 
 async function cargarReporteVentas() {
@@ -200,9 +207,19 @@ function renderReporteVentas() {
     const tituloPeriodo = reporte.tipo === 'mes' ? `Mes ${reporte.periodo}` : reporte.periodo;
     const metodos = reporte.metodos_pago || [];
     contenido.innerHTML = `
-        <div class="report-summary">
-            <span>Ingresos: ${escapeHtml(tituloPeriodo)}</span>
-            <strong>Bs ${centavosToMoney(reporte.total_centavos)}</strong>
+        <div class="report-summary-grid">
+            <div class="report-summary">
+                <span>Total vendido: ${escapeHtml(tituloPeriodo)}</span>
+                <strong>Bs ${centavosToMoney(reporte.total_vendido_centavos ?? reporte.total_centavos)}</strong>
+            </div>
+            <div class="report-summary">
+                <span>Total recaudado</span>
+                <strong>Bs ${centavosToMoney(reporte.total_recaudado_centavos ?? reporte.total_centavos)}</strong>
+            </div>
+            <div class="report-summary pending-summary">
+                <span>Credito pendiente</span>
+                <strong>Bs ${centavosToMoney(reporte.saldo_pendiente_centavos)}</strong>
+            </div>
         </div>
         <p class="muted">Ventas confirmadas: ${Number(reporte.cantidad_ventas || 0)}</p>
         ${metodos.length ? metodos.map(renderReporteMetodo).join('') : '<p class="muted">No hay ventas confirmadas en este periodo.</p>'}
@@ -217,6 +234,11 @@ function renderReporteMetodo(metodo) {
                 <h5>Ventas ${escapeHtml(formatMetodoPago(metodo.metodo_pago))}</h5>
                 <strong>Bs ${centavosToMoney(metodo.total_centavos)}</strong>
             </div>
+            ${metodo.metodo_pago === 'credito' ? `
+                <p class="muted report-credit-note">
+                    Recaudado: Bs ${centavosToMoney(metodo.total_recaudado_centavos)} · Pendiente: Bs ${centavosToMoney(metodo.saldo_pendiente_centavos)}
+                </p>
+            ` : ''}
             ${productos.length ? `
                 <table class="ventas-table report-table">
                     <thead>
@@ -255,7 +277,9 @@ function exportarReporteExcel() {
             <body>
                 <table border="1">
                     <tr><th colspan="5">Reporte de ventas - ${escapeHtml(reporte.periodo)}</th></tr>
-                    <tr><td colspan="4">Ingresos</td><td>${centavosToMoney(reporte.total_centavos)}</td></tr>
+                    <tr><td colspan="4">Total vendido</td><td>${centavosToMoney(reporte.total_vendido_centavos ?? reporte.total_centavos)}</td></tr>
+                    <tr><td colspan="4">Total recaudado</td><td>${centavosToMoney(reporte.total_recaudado_centavos ?? reporte.total_centavos)}</td></tr>
+                    <tr><td colspan="4">Credito pendiente</td><td>${centavosToMoney(reporte.saldo_pendiente_centavos)}</td></tr>
                     <tr><td colspan="4">Ventas confirmadas</td><td>${Number(reporte.cantidad_ventas || 0)}</td></tr>
                     <tr>
                         <th>Metodo</th>
@@ -316,7 +340,9 @@ function exportarReportePdf() {
                 <h1>Reporte de ventas</h1>
                 <p>Periodo: ${escapeHtml(reporte.periodo)}</p>
                 <div class="summary">
-                    <strong>Ingresos: Bs ${centavosToMoney(reporte.total_centavos)}</strong><br>
+                    <strong>Total vendido: Bs ${centavosToMoney(reporte.total_vendido_centavos ?? reporte.total_centavos)}</strong><br>
+                    Total recaudado: Bs ${centavosToMoney(reporte.total_recaudado_centavos ?? reporte.total_centavos)}<br>
+                    Credito pendiente: Bs ${centavosToMoney(reporte.saldo_pendiente_centavos)}<br>
                     Ventas confirmadas: ${Number(reporte.cantidad_ventas || 0)}
                 </div>
                 <table>
@@ -401,63 +427,73 @@ function cerrarModalVenta() {
 function renderVentaForm() {
     return `
         <div id="venta-form">
-            <div class="ventas-subsection compact-subsection">
-                <h5>Cliente</h5>
-                <div class="form-grid">
-                    <div class="form-field client-field">
-                        <span>Buscar cliente</span>
+            <div class="ventas-subsection compact-subsection sale-form-section">
+                <h5><span class="form-section-icon">&#128100;</span> Cliente</h5>
+                <div class="client-picker-grid">
+                    <div class="form-field">
+                        <span>Buscar por nombre o CI/NIT</span>
                         <input id="venta-cliente-buscar" type="text" placeholder="Nombre o CI/NIT" oninput="buscarClientesVenta()">
+                    </div>
+                    <div class="form-field">
+                        <span>Cliente seleccionado</span>
                         <select id="venta-cliente" onchange="actualizarFidelizacionVenta()">
                             <option value="">Consumidor final</option>
                         </select>
-                        <button type="button" class="mini-btn" onclick="toggleNuevoClienteVenta()">Registrar nuevo cliente</button>
+                    </div>
+                    <div class="form-field client-register-field">
+                        <span>Cliente no encontrado?</span>
+                        <button type="button" class="mini-btn client-register-btn" onclick="toggleNuevoClienteVenta()">+ Nuevo cliente</button>
+                    </div>
 
-                        <div id="nuevo-cliente-box" class="nested-form" hidden>
-                            <div class="ventas-section-header compact-header">
-                                <h4>Nuevo cliente</h4>
-                                <button type="button" class="link-btn" onclick="toggleNuevoClienteVenta(false)">Usar consumidor final</button>
-                            </div>
-                            <div class="form-grid">
-                                <label>
-                                    Nombre *
-                                    <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
-                                </label>
-                                <label>
-                                    CI/NIT *
-                                    <input id="nuevo-cliente-nit" type="text" placeholder="Documento">
-                                </label>
-                                <label>
-                                    Telefono
-                                    <input id="nuevo-cliente-telefono" type="text" placeholder="Opcional">
-                                </label>
-                                <label>
-                                    Correo
-                                    <input id="nuevo-cliente-correo" type="email" placeholder="Si esta vacio se usara correo estandar">
-                                </label>
-                            </div>
+                    <div id="nuevo-cliente-box" class="nested-form client-nested-form" hidden>
+                        <div class="ventas-section-header compact-header">
+                            <h4>Nuevo cliente</h4>
+                            <button type="button" class="link-btn" onclick="toggleNuevoClienteVenta(false)">Usar consumidor final</button>
                         </div>
-
-                        <div id="fidelizacion-box" class="loyalty-box" hidden>
-                            <strong>Descuento por puntos</strong>
-                            <span id="cliente-puntos-info">Puntos actuales: 0</span>
-                            <label class="inline-check">
-                                <input id="usar-descuento-puntos" type="checkbox" onchange="actualizarTotalVenta()">
-                                Aplicar descuento de fidelizacion
+                        <div class="form-grid">
+                            <label>
+                                Nombre *
+                                <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
                             </label>
                             <label>
+                                CI/NIT *
+                                <input id="nuevo-cliente-nit" type="text" placeholder="Documento">
+                            </label>
+                            <label>
+                                Telefono
+                                <input id="nuevo-cliente-telefono" type="text" placeholder="Opcional">
+                            </label>
+                            <label>
+                                Correo
+                                <input id="nuevo-cliente-correo" type="email" placeholder="Si esta vacio se usara correo estandar">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="fidelizacion-box" class="loyalty-box client-loyalty-box" hidden>
+                        <div class="loyalty-header">
+                            <strong>Descuento por puntos</strong>
+                            <span id="cliente-puntos-info">Puntos actuales: 0</span>
+                        </div>
+                        <div class="loyalty-controls">
+                            <label class="inline-check loyalty-check">
+                            <input id="usar-descuento-puntos" type="checkbox" onchange="cambiarUsoDescuentoPuntos()">
+                                <span>Aplicar descuento de fidelizacion</span>
+                            </label>
+                            <label class="loyalty-percent-field">
                                 Porcentaje permitido
-                                <select id="descuento-puntos-porcentaje" onchange="actualizarTotalVenta()">
+                                <select id="descuento-puntos-porcentaje" onchange="cambiarPorcentajeDescuentoPuntos()">
                                     <option value="0">Sin descuento por puntos</option>
                                 </select>
                             </label>
-                            <small class="field-help">Solo se habilita cuando el cliente tiene puntos suficientes.</small>
                         </div>
+                        <small class="field-help">Solo se habilita cuando el cliente tiene puntos suficientes.</small>
                     </div>
                 </div>
             </div>
 
-            <div class="ventas-subsection">
-                <h5>Datos de venta</h5>
+            <div class="ventas-subsection sale-form-section">
+                <h5><span class="form-section-icon">&#128203;</span> Datos de venta</h5>
                 <div class="form-grid">
                 <label>
                     Sucursal *
@@ -484,11 +520,15 @@ function renderVentaForm() {
                 </div>
             </div>
 
-            <div class="ventas-subsection">
-                <h5>Productos</h5>
+            <div class="ventas-subsection sale-form-section">
+                <h5><span class="form-section-icon">&#128230;</span> Productos</h5>
                 <div class="product-picker">
                     <input id="producto-id" type="hidden">
                     <input id="producto-uid" type="hidden">
+                    <label class="product-search-field">
+                        Buscar producto
+                        <input id="producto-buscar" type="search" placeholder="Nombre o codigo" oninput="buscarProductosVenta()">
+                    </label>
                     <label class="product-picker-name">
                         Producto
                         <select id="producto-select" onchange="seleccionarProductoVenta()">
@@ -509,8 +549,8 @@ function renderVentaForm() {
                 <div id="venta-productos"></div>
             </div>
 
-            <div class="ventas-subsection">
-                <h5>Pago inicial</h5>
+            <div class="ventas-subsection sale-form-section">
+                <h5><span class="form-section-icon">&#128179;</span> Pago inicial</h5>
                 <div class="form-grid">
                     <label>
                         Metodo de pago *
@@ -577,6 +617,11 @@ function renderProductoOptions(emptyLabel = 'Cargando productos...') {
         <option value="">${escapeHtml(getProductoEmptyLabel(emptyLabel, productos.length))}</option>
         ${options}
     `;
+}
+
+function buscarProductosVenta() {
+    llenarComboProductos('Selecciona producto');
+    actualizarStockProductoVenta();
 }
 
 async function cargarSucursalesVentas() {
@@ -682,18 +727,33 @@ function llenarComboProductos(emptyLabel = 'Selecciona producto') {
 
 function getProductosDisponiblesVenta() {
     const sucursalUid = document.getElementById('venta-sucursal-uid')?.value.trim();
-    if (!sucursalUid || !ventasState.stockSucursalCargado) {
-        return ventasState.catalogoProductos;
+    const busqueda = normalizeSpaces(document.getElementById('producto-buscar')?.value || '').toLowerCase();
+    let productos = ventasState.catalogoProductos;
+
+    if (sucursalUid && ventasState.stockSucursalCargado) {
+        productos = productos.filter(producto => {
+            const stock = getStockProducto(producto.uid);
+            return stock !== null && stock > 0;
+        });
     }
 
-    return ventasState.catalogoProductos.filter(producto => {
-        const stock = getStockProducto(producto.uid);
-        return stock !== null && stock > 0;
-    });
+    if (busqueda) {
+        productos = productos.filter(producto => {
+            const texto = `${producto.nombre || ''} ${producto.uid || ''} ${producto.id || ''}`.toLowerCase();
+            return texto.includes(busqueda);
+        });
+    }
+
+    return productos;
 }
 
 function getProductoEmptyLabel(defaultLabel, productosCount) {
     const sucursalUid = document.getElementById('venta-sucursal-uid')?.value.trim();
+    const busqueda = normalizeSpaces(document.getElementById('producto-buscar')?.value || '');
+    if (busqueda && productosCount) {
+        return `Selecciona producto (${productosCount} encontrado${productosCount === 1 ? '' : 's'})`;
+    }
+    if (busqueda && !productosCount) return 'Sin coincidencias';
     if (!sucursalUid) return defaultLabel;
     if (!ventasState.stockSucursalCargado) return defaultLabel;
     if (!productosCount) return 'No hay productos con stock en esta sucursal';
@@ -922,7 +982,9 @@ function actualizarFidelizacionVenta() {
     if (!cliente) {
         box.hidden = true;
         useCheckbox.checked = false;
+        useCheckbox.disabled = false;
         percentSelect.innerHTML = '<option value="0">Sin descuento por puntos</option>';
+        percentSelect.disabled = true;
         actualizarTotalVenta();
         return;
     }
@@ -941,7 +1003,41 @@ function actualizarFidelizacionVenta() {
     if (maxPercent < 10) {
         useCheckbox.checked = false;
     }
+    sincronizarControlDescuentoPuntos();
     actualizarTotalVenta();
+}
+
+function cambiarUsoDescuentoPuntos() {
+    sincronizarControlDescuentoPuntos();
+    actualizarTotalVenta();
+}
+
+function cambiarPorcentajeDescuentoPuntos() {
+    const useCheckbox = document.getElementById('usar-descuento-puntos');
+    const percentSelect = document.getElementById('descuento-puntos-porcentaje');
+    if (useCheckbox && percentSelect && Number(percentSelect.value || 0) <= 0) {
+        useCheckbox.checked = false;
+    }
+    sincronizarControlDescuentoPuntos();
+    actualizarTotalVenta();
+}
+
+function sincronizarControlDescuentoPuntos() {
+    const useCheckbox = document.getElementById('usar-descuento-puntos');
+    const percentSelect = document.getElementById('descuento-puntos-porcentaje');
+    if (!useCheckbox || !percentSelect) return;
+
+    if (useCheckbox.disabled || !useCheckbox.checked) {
+        percentSelect.value = '0';
+        percentSelect.disabled = true;
+        return;
+    }
+
+    percentSelect.disabled = false;
+    if (Number(percentSelect.value || 0) <= 0) {
+        const firstDiscount = [...percentSelect.options].find(option => Number(option.value) > 0);
+        if (firstDiscount) percentSelect.value = firstDiscount.value;
+    }
 }
 
 async function cargarVentas() {
@@ -1249,7 +1345,9 @@ function agregarProductoVenta() {
     document.getElementById('producto-uid').value = '';
     document.getElementById('producto-cantidad').value = 1;
     document.getElementById('producto-precio').value = '';
+    document.getElementById('producto-buscar').value = '';
     document.getElementById('producto-select').value = '';
+    llenarComboProductos();
     seleccionarProductoVenta();
     mostrarMensajeVenta('Producto agregado.', false);
     renderProductosVenta();
@@ -1455,7 +1553,9 @@ async function registrarVenta(event) {
         descuento: '0.00',
         fidelizacion: {
             usar_descuento: document.getElementById('usar-descuento-puntos')?.checked || false,
-            porcentaje_descuento: Number(document.getElementById('descuento-puntos-porcentaje')?.value || 0)
+            porcentaje_descuento: document.getElementById('usar-descuento-puntos')?.checked
+                ? Number(document.getElementById('descuento-puntos-porcentaje')?.value || 0)
+                : 0
         },
         productos: ventasState.productos,
         pago: {
@@ -1495,6 +1595,7 @@ async function registrarVenta(event) {
         cerrarModalVenta();
         ventasState.productos = [];
         await cargarVentas();
+        await mostrarVentaExitosaPendiente();
     } catch (error) {
         mostrarMensajeVenta(`Error: no se pudo registrar la venta. Revise los datos. ${error.message || ''}`.trim(), 'error');
         mostrarNotificacionVentas('Error: revise los datos antes de registrar la venta.', 'error');

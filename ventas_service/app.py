@@ -25,6 +25,7 @@ COMPROBANTES_DIR = os.path.join(BASE_DIR, "comprobantes")
 INVENTARIO_OUTPUT_URL = "http://127.0.0.1:5002/inventory/output"
 INVENTARIO_INPUT_URL = "http://127.0.0.1:5002/inventory/input"
 NOTIFICACIONES_EVENTO_URL = "http://127.0.0.1:5005/api/eventos/publicar"
+NOTIFICACIONES_TIMEOUT = 12
 CLIENTES_SERVICE_URL = "http://127.0.0.1:5004"
 PRODUCTOS_SERVICE_URL = "http://127.0.0.1:5003"
 
@@ -105,6 +106,10 @@ def amount_from_payload(data, centavos_field, decimal_field, default=None):
 
 def format_money(centavos):
     return f"{Decimal(centavos) / Decimal(100):.2f}"
+
+
+def now_local_sql():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_allowed_points_discount_percent(puntos):
@@ -558,6 +563,42 @@ def publish_inventory_returns(items, venta_uid, sucursal_id, sucursal_uid):
 # Publica a Notificaciones el evento de venta confirmada.
 def publish_sale_event(venta, factura):
     factura = factura or {}
+    pdf_url = None
+    if venta.get("id"):
+        pdf_url = f"http://localhost:{SERVICE_PORT}/api/ventas/{venta.get('id')}/comprobante"
+
+    cliente_email = factura.get("cliente_correo")
+    if cliente_email and str(cliente_email).lower().startswith("sin-correo@"):
+        cliente_email = None
+
+    payload = {
+        "venta_uid": venta.get("uid"),
+        "cliente_uid": venta.get("cliente_uid"),
+        "sucursal_uid": venta.get("sucursal_uid"),
+        "empleado_uid": venta.get("empleado_uid"),
+        "total_centavos": venta["total_centavos"],
+        "monto_pagado_centavos": venta.get("monto_pagado_centavos", 0),
+        "saldo_pendiente_centavos": venta.get("saldo_pendiente_centavos", 0),
+        "estado_pago": venta.get("estado_pago", "pagado"),
+        "estado": venta["estado"],
+        "numero_factura": factura.get("numero_factura"),
+        "cliente_nombre": factura.get("cliente_nombre") or "CONSUMIDOR FINAL",
+        "cliente": factura.get("cliente_nombre") or "CONSUMIDOR FINAL",
+        "fecha": venta.get("creado_en"),
+        "detalle": [
+            {
+                "producto": item.get("producto_nombre") or item.get("producto_uid"),
+                "cantidad": item.get("cantidad"),
+                "subtotal_centavos": item.get("subtotal_centavos"),
+            }
+            for item in venta.get("detalle", [])
+        ],
+    }
+    if pdf_url:
+        payload["pdf_url"] = pdf_url
+    if cliente_email:
+        payload["email"] = cliente_email
+
     evento = {
         "evento": "VENTA_CONFIRMADA",
         "origen": "ventas_service",
@@ -565,25 +606,18 @@ def publish_sale_event(venta, factura):
         "referencia_uid": venta.get("uid"),
         "cliente_uid": venta.get("cliente_uid"),
         "sucursal_uid": venta.get("sucursal_uid"),
-        "payload": {
-            "venta_uid": venta.get("uid"),
-            "cliente_uid": venta.get("cliente_uid"),
-            "sucursal_uid": venta.get("sucursal_uid"),
-            "empleado_uid": venta.get("empleado_uid"),
-            "total_centavos": venta["total_centavos"],
-            "monto_pagado_centavos": venta.get("monto_pagado_centavos", 0),
-            "saldo_pendiente_centavos": venta.get("saldo_pendiente_centavos", 0),
-            "estado_pago": venta.get("estado_pago", "pagado"),
-            "estado": venta["estado"],
-            "numero_factura": factura.get("numero_factura"),
-            "cliente": factura.get("cliente_nombre") or "CONSUMIDOR FINAL",
-            "fecha": venta.get("creado_en"),
-        },
+        "payload": payload,
     }
     try:
-        response = requests.post(NOTIFICACIONES_EVENTO_URL, json=evento, timeout=3)
+        response = requests.post(NOTIFICACIONES_EVENTO_URL, json=evento, timeout=NOTIFICACIONES_TIMEOUT)
         if response.status_code >= 400:
             return f"Notificaciones respondio {response.status_code}."
+        try:
+            result = response.json().get("data", {})
+        except ValueError:
+            result = {}
+        if result and not result.get("delivered", True):
+            return f"Notificaciones registro el evento, pero no pudo enviar el correo: {result.get('error', 'sin detalle')}."
     except requests.RequestException as exc:
         return f"No se pudo publicar el evento de venta: {exc}"
     return None
@@ -592,6 +626,42 @@ def publish_sale_event(venta, factura):
 # Publica a Notificaciones el evento de venta anulada.
 def publish_sale_cancelled_event(venta):
     factura = venta.get("factura") or {}
+    pdf_url = None
+    if venta.get("id"):
+        pdf_url = f"http://localhost:{SERVICE_PORT}/api/ventas/{venta.get('id')}/comprobante"
+
+    cliente_email = factura.get("cliente_correo")
+    if cliente_email and str(cliente_email).lower().startswith("sin-correo@"):
+        cliente_email = None
+
+    payload = {
+        "venta_uid": venta.get("uid"),
+        "cliente_uid": venta.get("cliente_uid"),
+        "sucursal_uid": venta.get("sucursal_uid"),
+        "empleado_uid": venta.get("empleado_uid"),
+        "total_centavos": venta["total_centavos"],
+        "monto_pagado_centavos": venta.get("monto_pagado_centavos", 0),
+        "saldo_pendiente_centavos": venta.get("saldo_pendiente_centavos", 0),
+        "estado_pago": venta.get("estado_pago", "anulada"),
+        "estado": venta["estado"],
+        "numero_factura": factura.get("numero_factura"),
+        "cliente_nombre": factura.get("cliente_nombre") or "CONSUMIDOR FINAL",
+        "cliente": factura.get("cliente_nombre") or "CONSUMIDOR FINAL",
+        "fecha": venta.get("actualizado_en") or venta.get("creado_en"),
+        "detalle": [
+            {
+                "producto": item.get("producto_nombre") or item.get("producto_uid"),
+                "cantidad": item.get("cantidad"),
+                "subtotal_centavos": item.get("subtotal_centavos"),
+            }
+            for item in venta.get("detalle", [])
+        ],
+    }
+    if pdf_url:
+        payload["pdf_url"] = pdf_url
+    if cliente_email:
+        payload["email"] = cliente_email
+
     evento = {
         "evento": "VENTA_ANULADA",
         "origen": "ventas_service",
@@ -599,25 +669,18 @@ def publish_sale_cancelled_event(venta):
         "referencia_uid": venta.get("uid"),
         "cliente_uid": venta.get("cliente_uid"),
         "sucursal_uid": venta.get("sucursal_uid"),
-        "payload": {
-            "venta_uid": venta.get("uid"),
-            "cliente_uid": venta.get("cliente_uid"),
-            "sucursal_uid": venta.get("sucursal_uid"),
-            "empleado_uid": venta.get("empleado_uid"),
-            "total_centavos": venta["total_centavos"],
-            "monto_pagado_centavos": venta.get("monto_pagado_centavos", 0),
-            "saldo_pendiente_centavos": venta.get("saldo_pendiente_centavos", 0),
-            "estado_pago": venta.get("estado_pago", "anulada"),
-            "estado": venta["estado"],
-            "numero_factura": factura.get("numero_factura"),
-            "cliente": factura.get("cliente_nombre") or "CONSUMIDOR FINAL",
-            "fecha": venta.get("actualizado_en") or venta.get("creado_en"),
-        },
+        "payload": payload,
     }
     try:
-        response = requests.post(NOTIFICACIONES_EVENTO_URL, json=evento, timeout=3)
+        response = requests.post(NOTIFICACIONES_EVENTO_URL, json=evento, timeout=NOTIFICACIONES_TIMEOUT)
         if response.status_code >= 400:
             return f"Notificaciones respondio {response.status_code}."
+        try:
+            result = response.json().get("data", {})
+        except ValueError:
+            result = {}
+        if result and not result.get("delivered", True):
+            return f"Notificaciones registro la anulacion, pero no pudo enviar el correo: {result.get('error', 'sin detalle')}."
     except requests.RequestException as exc:
         return f"No se pudo publicar el evento de anulacion: {exc}"
     return None
@@ -645,7 +708,7 @@ def build_comprobante_lines(venta, detalle, pago, factura, cliente):
         line("="),
         center("ABUELITA SERAFINA"),
         center("SUPERMARKET BOLIVIA S.A."),
-        center("COMPROBANTE DE PAGO"),
+        center("FACTURA DE VENTA"),
         line("="),
         field("NRO.", factura["numero_factura"]),
         field("VENTA", venta["uid"]),
@@ -736,25 +799,53 @@ def reporte_ventas():
         conn = get_db_connection()
         resumen = conn.execute(
             f"""
+            WITH pagos AS (
+                SELECT venta_id, COALESCE(SUM(monto_centavos), 0) AS monto_pagado_centavos
+                FROM pagos_ventas
+                GROUP BY venta_id
+            )
             SELECT
                 COUNT(DISTINCT v.id) AS cantidad_ventas,
-                COALESCE(SUM(v.total_centavos), 0) AS total_centavos
+                COALESCE(SUM(v.total_centavos), 0) AS total_centavos,
+                COALESCE(SUM(COALESCE(pagos.monto_pagado_centavos, 0)), 0) AS total_recaudado_centavos,
+                COALESCE(SUM(
+                    CASE
+                        WHEN v.tipo_venta = 'credito'
+                        THEN MAX(v.total_centavos - COALESCE(pagos.monto_pagado_centavos, 0), 0)
+                        ELSE 0
+                    END
+                ), 0) AS saldo_pendiente_centavos
             FROM ventas v
+            LEFT JOIN pagos ON pagos.venta_id = v.id
             WHERE v.estado = 'confirmada' AND {date_filter}
             """,
             params,
         ).fetchone()
         pagos = conn.execute(
             f"""
+            WITH pagos AS (
+                SELECT venta_id, COALESCE(SUM(monto_centavos), 0) AS monto_pagado_centavos
+                FROM pagos_ventas
+                GROUP BY venta_id
+            )
             SELECT
                 CASE
                     WHEN v.tipo_venta = 'credito' THEN 'credito'
-                    ELSE COALESCE(p.metodo_pago, 'sin_pago')
+                    ELSE COALESCE(pv.metodo_pago, 'sin_pago')
                 END AS metodo_pago,
                 COUNT(DISTINCT v.id) AS cantidad_ventas,
-                COALESCE(SUM(v.total_centavos), 0) AS total_centavos
+                COALESCE(SUM(v.total_centavos), 0) AS total_centavos,
+                COALESCE(SUM(COALESCE(pagos.monto_pagado_centavos, 0)), 0) AS total_recaudado_centavos,
+                COALESCE(SUM(
+                    CASE
+                        WHEN v.tipo_venta = 'credito'
+                        THEN MAX(v.total_centavos - COALESCE(pagos.monto_pagado_centavos, 0), 0)
+                        ELSE 0
+                    END
+                ), 0) AS saldo_pendiente_centavos
             FROM ventas v
-            LEFT JOIN pagos_ventas p ON p.venta_id = v.id
+            LEFT JOIN pagos_ventas pv ON pv.venta_id = v.id
+            LEFT JOIN pagos ON pagos.venta_id = v.id
             WHERE v.estado = 'confirmada' AND {date_filter}
             GROUP BY metodo_pago
             ORDER BY metodo_pago
@@ -802,6 +893,9 @@ def reporte_ventas():
                 "periodo": periodo,
                 "cantidad_ventas": resumen["cantidad_ventas"],
                 "total_centavos": resumen["total_centavos"],
+                "total_vendido_centavos": resumen["total_centavos"],
+                "total_recaudado_centavos": resumen["total_recaudado_centavos"],
+                "saldo_pendiente_centavos": resumen["saldo_pendiente_centavos"],
                 "metodos_pago": [
                     {
                         **row_to_dict(row),
@@ -876,14 +970,15 @@ def anular_venta(venta_id):
             conn.close()
             return jsonify({"status": "warning", "message": "La venta ya estaba anulada.", "data": venta}), 200
 
+        timestamp = now_local_sql()
         conn.execute("BEGIN")
         conn.execute(
-            "UPDATE ventas SET estado = 'anulada', actualizado_en = CURRENT_TIMESTAMP WHERE id = ?",
-            (venta_id,),
+            "UPDATE ventas SET estado = 'anulada', actualizado_en = ? WHERE id = ?",
+            (timestamp, venta_id),
         )
         conn.execute(
-            "UPDATE facturas SET estado = 'anulada', actualizado_en = CURRENT_TIMESTAMP WHERE venta_id = ?",
-            (venta_id,),
+            "UPDATE facturas SET estado = 'anulada', actualizado_en = ? WHERE venta_id = ?",
+            (timestamp, venta_id),
         )
         conn.commit()
 
@@ -1062,6 +1157,7 @@ def registrar_venta():
         puntos_ganados = get_points_earned(total_centavos) if cliente_uid else 0
 
         conn = get_db_connection()
+        timestamp = now_local_sql()
         conn.execute("BEGIN")
         venta_uid = build_uid()
 
@@ -1070,9 +1166,9 @@ def registrar_venta():
             INSERT INTO ventas (
                 uid, sucursal_id, sucursal_uid, cliente_id, cliente_uid,
                 empleado_id, empleado_uid, tipo_venta, subtotal_centavos,
-                descuento_centavos, total_centavos, estado
+                descuento_centavos, total_centavos, estado, creado_en, actualizado_en
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmada')
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmada', ?, ?)
             """,
             (
                 venta_uid,
@@ -1086,6 +1182,8 @@ def registrar_venta():
                 subtotal_centavos,
                 descuento_centavos,
                 total_centavos,
+                timestamp,
+                timestamp,
             ),
         )
         venta_id = cursor.lastrowid
@@ -1116,11 +1214,11 @@ def registrar_venta():
             conn.execute(
                 """
                 INSERT INTO pagos_ventas (
-                    uid, venta_id, venta_uid, metodo_pago, monto_centavos, referencia
+                    uid, venta_id, venta_uid, metodo_pago, monto_centavos, referencia, creado_en
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (pago_uid, venta_id, venta_uid, metodo_pago, monto_pago, referencia_pago),
+                (pago_uid, venta_id, venta_uid, metodo_pago, monto_pago, referencia_pago, timestamp),
             )
 
         numero_factura = f"F-{venta_id:06d}"
@@ -1128,9 +1226,10 @@ def registrar_venta():
             """
             INSERT INTO facturas (
                 uid, venta_id, venta_uid, numero_factura, cliente_id, cliente_uid,
-                cliente_nombre, cliente_nit_ci, cliente_correo, monto_total_centavos
+                cliente_nombre, cliente_nit_ci, cliente_correo, monto_total_centavos,
+                creado_en, actualizado_en
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 factura_uid,
@@ -1143,6 +1242,8 @@ def registrar_venta():
                 cliente.get("nit_ci"),
                 cliente.get("correo"),
                 total_centavos,
+                timestamp,
+                timestamp,
             ),
         )
 
@@ -1169,8 +1270,8 @@ def registrar_venta():
         create_simple_pdf(pdf_path, build_comprobante_lines(venta_pdf, detalle, pago_pdf, factura_pdf, cliente))
 
         conn.execute(
-            "UPDATE facturas SET archivo_pdf = ?, actualizado_en = CURRENT_TIMESTAMP WHERE venta_id = ?",
-            (pdf_path, venta_id),
+            "UPDATE facturas SET archivo_pdf = ?, actualizado_en = ? WHERE venta_id = ?",
+            (pdf_path, timestamp, venta_id),
         )
         conn.commit()
 
