@@ -12,8 +12,8 @@ DATABASE_PATH = os.getenv(
 
 # Configuración de Gmail para envío de notificaciones
 # Credenciales hardcodeadas - usar correo real y contraseña de aplicación
-GMAIL_EMAIL = "fabiancondori9@gmail.com"  # REEMPLAZAR con tu email real de Gmail
-GMAIL_APP_PASSWORD = "hmln jmpo yqol fwwc"  # Contraseña de aplicación proporcionada
+GMAIL_EMAIL = "serafina.supermarket@gmail.com"  # REEMPLAZAR con tu email real de Gmail
+GMAIL_APP_PASSWORD = "npbs aqvx qlso vqiy"  # Contraseña de aplicación proporcionada serafina
 GMAIL_SMTP_SERVER = "smtp.gmail.com"
 GMAIL_SMTP_PORT = 587
 GMAIL_USE_TLS = True
