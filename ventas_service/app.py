@@ -114,6 +114,39 @@ def get_points_earned(total_centavos):
     return int(total_centavos or 0) // 10000
 
 
+def get_payment_status(tipo_venta, estado_venta, total_centavos, monto_pagado_centavos):
+    if estado_venta == "anulada":
+        return "anulada"
+    if tipo_venta == "contado":
+        return "pagado"
+    if int(monto_pagado_centavos or 0) <= 0:
+        return "pendiente"
+    if int(monto_pagado_centavos or 0) < int(total_centavos or 0):
+        return "parcial"
+    return "pagado"
+
+
+def enrich_payment_summary(venta_data):
+    pagos = venta_data.get("pagos") or []
+    monto_pagado = venta_data.get("monto_pagado_centavos")
+    if monto_pagado is None:
+        monto_pagado = sum(int(pago.get("monto_centavos") or 0) for pago in pagos)
+
+    total = int(venta_data.get("total_centavos") or 0)
+    monto_pagado = int(monto_pagado or 0)
+    saldo = max(total - monto_pagado, 0)
+
+    venta_data["monto_pagado_centavos"] = monto_pagado
+    venta_data["saldo_pendiente_centavos"] = saldo
+    venta_data["estado_pago"] = get_payment_status(
+        venta_data.get("tipo_venta"),
+        venta_data.get("estado"),
+        total,
+        monto_pagado,
+    )
+    return venta_data
+
+
 # Consultas a otros microservicios para enriquecer datos sin acceder directo a sus tablas.
 def fetch_cliente_fidelizacion(cliente_uid):
     if not cliente_uid:
@@ -138,6 +171,30 @@ def fetch_producto_nombre(producto_id):
     except requests.RequestException:
         return None
     return None
+
+
+def create_cliente_for_sale(cliente_payload):
+    payload = {
+        "nombre": str(cliente_payload.get("nombre") or "").strip(),
+        "nit_ci": str(cliente_payload.get("nit_ci") or "").strip(),
+        "telefono": str(cliente_payload.get("telefono") or "00000000").strip() or "00000000",
+        "correo": str(cliente_payload.get("correo") or "sin-correo@abuelitaserafina.bo").strip(),
+        "estado": "activo",
+    }
+
+    try:
+        response = requests.post(f"{CLIENTES_SERVICE_URL}/api/clientes", json=payload, timeout=4)
+        data = response.json() if response.content else {}
+    except requests.RequestException as exc:
+        raise ValueError(f"No se pudo registrar el cliente desde ventas: {exc}")
+
+    if response.status_code >= 400:
+        raise ValueError(data.get("message") or data.get("error") or "Clientes no pudo registrar el cliente.")
+
+    cliente = data.get("data") if isinstance(data, dict) else None
+    if not isinstance(cliente, dict) or not cliente.get("uid"):
+        raise ValueError("Clientes no devolvio los datos del cliente creado.")
+    return cliente
 
 
 # Publica cambios de fidelizacion al servicio de Clientes cuando una venta se confirma o se anula.
@@ -207,9 +264,9 @@ def publish_customer_loyalty_update(
         return f"No se pudo actualizar fidelizacion del cliente: {exc}"
 
 
-# Utilidades para crear identificadores internos y escapar texto dentro del PDF.
-def build_uid(prefix):
-    return f"{prefix}-{uuid.uuid4().hex[:10].upper()}"
+# Utilidad para crear UID opacos, similar al formato usado por Clientes/Productos.
+def build_uid():
+    return uuid.uuid4().hex
 
 
 def escape_pdf_text(text):
@@ -356,7 +413,7 @@ def fetch_sale(conn, venta_id):
     venta_data["detalle"] = [row_to_dict(row) for row in detalle]
     venta_data["pagos"] = [row_to_dict(row) for row in pagos]
     venta_data["factura"] = row_to_dict(factura)
-    return venta_data
+    return enrich_payment_summary(venta_data)
 
 
 # Regenera el comprobante desde la informacion guardada, util cuando una venta fue anulada.
@@ -367,8 +424,8 @@ def regenerate_comprobante_pdf(venta):
 
     pagos = venta.get("pagos") or []
     pago = pagos[0] if pagos else {
-        "metodo_pago": "S/N",
-        "monto_centavos": venta.get("total_centavos", 0),
+        "metodo_pago": "SIN PAGO INICIAL" if venta.get("tipo_venta") == "credito" else "S/N",
+        "monto_centavos": venta.get("monto_pagado_centavos", 0),
         "referencia": None,
     }
     cliente = {
@@ -418,12 +475,19 @@ def publish_sale_event(venta, factura):
     evento = {
         "evento": "VENTA_CONFIRMADA",
         "origen": "ventas_service",
+        "referencia_tipo": "venta",
+        "referencia_uid": venta.get("uid"),
+        "cliente_uid": venta.get("cliente_uid"),
+        "sucursal_uid": venta.get("sucursal_uid"),
         "payload": {
             "venta_uid": venta.get("uid"),
             "cliente_uid": venta.get("cliente_uid"),
             "sucursal_uid": venta.get("sucursal_uid"),
             "empleado_uid": venta.get("empleado_uid"),
             "total_centavos": venta["total_centavos"],
+            "monto_pagado_centavos": venta.get("monto_pagado_centavos", 0),
+            "saldo_pendiente_centavos": venta.get("saldo_pendiente_centavos", 0),
+            "estado_pago": venta.get("estado_pago", "pagado"),
             "estado": venta["estado"],
             "numero_factura": factura.get("numero_factura"),
             "cliente": factura.get("cliente_nombre") or "CONSUMIDOR FINAL",
@@ -445,12 +509,19 @@ def publish_sale_cancelled_event(venta):
     evento = {
         "evento": "VENTA_ANULADA",
         "origen": "ventas_service",
+        "referencia_tipo": "venta",
+        "referencia_uid": venta.get("uid"),
+        "cliente_uid": venta.get("cliente_uid"),
+        "sucursal_uid": venta.get("sucursal_uid"),
         "payload": {
             "venta_uid": venta.get("uid"),
             "cliente_uid": venta.get("cliente_uid"),
             "sucursal_uid": venta.get("sucursal_uid"),
             "empleado_uid": venta.get("empleado_uid"),
             "total_centavos": venta["total_centavos"],
+            "monto_pagado_centavos": venta.get("monto_pagado_centavos", 0),
+            "saldo_pendiente_centavos": venta.get("saldo_pendiente_centavos", 0),
+            "estado_pago": venta.get("estado_pago", "anulada"),
             "estado": venta["estado"],
             "numero_factura": factura.get("numero_factura"),
             "cliente": factura.get("cliente_nombre") or "CONSUMIDOR FINAL",
@@ -494,6 +565,7 @@ def build_comprobante_lines(venta, detalle, pago, factura, cliente):
         field("VENTA", venta["uid"]),
         field("SUCURSAL", venta.get("sucursal_uid")),
         field("CAJERO", venta.get("empleado_uid")),
+        field("TIPO VENTA", venta.get("tipo_venta", "contado").upper()),
         field("FECHA", fecha),
         line("-"),
         field("CLIENTE", cliente_nombre),
@@ -520,7 +592,8 @@ def build_comprobante_lines(venta, detalle, pago, factura, cliente):
             f"{'DESCUENTO (BS)':<28}{format_money(venta['descuento_centavos']):>14}",
             f"{'TOTAL A PAGAR (BS)':<28}{format_money(venta['total_centavos']):>14}",
             f"{'MONTO PAGADO (BS)':<28}{format_money(pago['monto_centavos']):>14}",
-            f"{'SALDO (BS)':<28}{'0.00':>14}",
+            f"{'SALDO (BS)':<28}{format_money(venta.get('saldo_pendiente_centavos', 0)):>14}",
+            field("ESTADO PAGO", venta.get("estado_pago", "pagado").upper()),
             line("-"),
             field("METODO PAGO", str(pago["metodo_pago"]).upper()),
             field("REFERENCIA", pago.get("referencia")),
@@ -564,9 +637,10 @@ def reporte_ventas():
         resumen = conn.execute(
             f"""
             SELECT
-                COUNT(*) AS cantidad_ventas,
-                COALESCE(SUM(total_centavos), 0) AS total_centavos
+                COUNT(DISTINCT v.id) AS cantidad_ventas,
+                COALESCE(SUM(p.monto_centavos), 0) AS total_centavos
             FROM ventas v
+            LEFT JOIN pagos_ventas p ON p.venta_id = v.id
             WHERE v.estado = 'confirmada' AND {date_filter}
             """,
             (periodo,),
@@ -643,14 +717,26 @@ def listar_ventas():
         conn = get_db_connection()
         ventas = conn.execute(
             """
-            SELECT v.*, f.numero_factura, f.archivo_pdf
+            SELECT
+                v.*,
+                f.numero_factura,
+                f.archivo_pdf,
+                f.cliente_nombre,
+                f.cliente_nit_ci,
+                f.cliente_correo,
+                COALESCE(p.monto_pagado_centavos, 0) AS monto_pagado_centavos
             FROM ventas v
             LEFT JOIN facturas f ON f.venta_id = v.id
+            LEFT JOIN (
+                SELECT venta_id, COALESCE(SUM(monto_centavos), 0) AS monto_pagado_centavos
+                FROM pagos_ventas
+                GROUP BY venta_id
+            ) p ON p.venta_id = v.id
             ORDER BY v.creado_en DESC, v.id DESC
             """
         ).fetchall()
         conn.close()
-        return jsonify({"status": "success", "data": [row_to_dict(row) for row in ventas]}), 200
+        return jsonify({"status": "success", "data": [enrich_payment_summary(row_to_dict(row)) for row in ventas]}), 200
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500
 
@@ -828,21 +914,27 @@ def registrar_venta():
         metodo_pago = get_required_text(pago, "metodo_pago")
         if metodo_pago not in ("efectivo", "tarjeta", "qr", "transferencia"):
             raise ValueError("Metodo de pago no valido.")
-        monto_pago = amount_from_payload(pago, "monto_centavos", "monto", default=total_centavos)
+        monto_default = total_centavos if tipo_venta == "contado" else 0
+        monto_pago = amount_from_payload(pago, "monto_centavos", "monto", default=monto_default)
         if tipo_venta == "contado" and monto_pago != total_centavos:
             raise ValueError("Para ventas al contado, el monto pagado debe ser igual al total.")
+        if tipo_venta == "credito" and monto_pago > total_centavos:
+            raise ValueError("Para ventas a credito, el monto inicial no puede superar el total.")
         referencia_pago = pago.get("referencia")
 
         empleado_id = data.get("empleado_id")
         empleado_uid = data.get("empleado_uid")
 
-        venta_uid = build_uid("VEN")
-        pago_uid = build_uid("PAG")
-        factura_uid = build_uid("FAC")
+        if isinstance(cliente, dict) and cliente.get("crear_nuevo"):
+            cliente = create_cliente_for_sale(cliente)
+            cliente_id = cliente.get("id")
+            cliente_uid = cliente.get("uid")
+
         puntos_ganados = get_points_earned(total_centavos) if cliente_uid else 0
 
         conn = get_db_connection()
         conn.execute("BEGIN")
+        venta_uid = build_uid()
 
         cursor = conn.execute(
             """
@@ -868,6 +960,8 @@ def registrar_venta():
             ),
         )
         venta_id = cursor.lastrowid
+        pago_uid = f"PAY-{venta_uid}"
+        factura_uid = f"FAC-{venta_id:03d}"
 
         for item in detalle:
             conn.execute(
@@ -889,17 +983,18 @@ def registrar_venta():
                 ),
             )
 
-        conn.execute(
-            """
-            INSERT INTO pagos_ventas (
-                uid, venta_id, venta_uid, metodo_pago, monto_centavos, referencia
+        if monto_pago > 0:
+            conn.execute(
+                """
+                INSERT INTO pagos_ventas (
+                    uid, venta_id, venta_uid, metodo_pago, monto_centavos, referencia
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (pago_uid, venta_id, venta_uid, metodo_pago, monto_pago, referencia_pago),
             )
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (pago_uid, venta_id, venta_uid, metodo_pago, monto_pago, referencia_pago),
-        )
 
-        numero_factura = f"FAC-{datetime.now().strftime('%Y%m%d')}-{venta_id:06d}"
+        numero_factura = f"F-{venta_id:06d}"
         conn.execute(
             """
             INSERT INTO facturas (
@@ -928,12 +1023,16 @@ def registrar_venta():
             "uid": venta_uid,
             "sucursal_uid": sucursal_uid,
             "empleado_uid": empleado_uid,
+            "tipo_venta": tipo_venta,
             "subtotal_centavos": subtotal_centavos,
             "descuento_centavos": descuento_centavos,
             "total_centavos": total_centavos,
+            "monto_pagado_centavos": monto_pago,
+            "saldo_pendiente_centavos": max(total_centavos - monto_pago, 0),
+            "estado_pago": get_payment_status(tipo_venta, "confirmada", total_centavos, monto_pago),
         }
         pago_pdf = {
-            "metodo_pago": metodo_pago,
+            "metodo_pago": metodo_pago if monto_pago > 0 else "SIN PAGO INICIAL",
             "monto_centavos": monto_pago,
             "referencia": referencia_pago,
         }

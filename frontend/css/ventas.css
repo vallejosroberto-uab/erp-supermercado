@@ -13,12 +13,14 @@
 .ventas-search { margin-bottom: 12px; }
 .ventas-search input { width: 100%; border: 1px solid #d8e1dc; border-radius: 6px; padding: 10px 12px; color: var(--text-main); background: #fff; }
 .ventas-subsection { margin-top: 18px; }
+.ventas-subsection.compact-subsection { margin-top: 0; }
 .ventas-subsection h5 { margin-bottom: 10px; color: var(--text-main); font-size: 1rem; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .form-grid label, .form-grid .form-field { display: flex; flex-direction: column; gap: 6px; color: var(--text-light); font-size: 0.9rem; }
 .client-field { grid-column: 1 / -1; }
 .form-grid input, .form-grid select, .product-picker input, .product-picker select { width: 100%; border: 1px solid #d8e1dc; border-radius: 6px; padding: 10px; color: var(--text-main); background: #fff; }
 .form-grid input[readonly], .product-picker input[readonly] { background: #f5f8f6; color: var(--text-light); }
+.field-help { color: var(--text-light); font-size: 0.78rem; line-height: 1.35; }
 .compact-grid { grid-template-columns: minmax(0, 2fr) minmax(120px, 1fr); margin-bottom: 10px; }
 .readonly-pair { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px; }
 .product-picker { display: grid; grid-template-columns: minmax(220px, 1fr) 100px 130px auto; gap: 10px; align-items: end; padding: 12px; border: 1px solid #edf2ef; border-radius: 8px; background: #fbfdfc; }
@@ -55,6 +57,8 @@
 .table-actions { display: flex; gap: 8px; align-items: center; }
 .status-pill { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #e6f4ea; color: #256029; font-size: 0.82rem; font-weight: 700; }
 .status-pill.cancelled { background: #fce8e6; color: #b3261e; }
+.payment-status-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.status-pill.payment-status { background: #eef2ff; color: #344054; }
 .venta-total { margin-top: 18px; padding: 14px; border-radius: 8px; background: #f0f7f3; display: flex; justify-content: space-between; align-items: center; }
 .venta-total strong { color: var(--accent-color); font-size: 1.25rem; }
 .ventas-message { margin-top: 14px; padding: 10px 12px; border-radius: 6px; font-size: 0.92rem; }
@@ -72,10 +76,11 @@
 .modal-header h4 { color: var(--accent-color); font-size: 1.1rem; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .detalle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
-.nested-form { margin-top: 16px; padding: 14px; border: 1px solid #edf2ef; border-radius: 8px; background: #fbfdfc; }
+.nested-form { margin-top: 10px; padding: 14px; border: 1px solid #edf2ef; border-radius: 8px; background: #fbfdfc; }
 .compact-header { margin-bottom: 12px; }
 .compact-header h4 { font-size: 1rem; }
-.loyalty-box { margin-top: 8px; padding: 10px; border-radius: 8px; background: #f0f7f3; display: flex; flex-direction: column; gap: 8px; }
+.loyalty-box { margin-top: 12px; padding: 12px; border-radius: 8px; background: #f0f7f3; display: flex; flex-direction: column; gap: 8px; }
+.loyalty-box label { display: flex; flex-direction: column; gap: 6px; color: var(--text-light); font-size: 0.9rem; }
 .loyalty-box strong { color: var(--accent-color); }
 .inline-check { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px !important; }
 .inline-check input { width: auto !important; }

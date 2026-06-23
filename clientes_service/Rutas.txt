@@ -1,0 +1,39 @@
+MICROSERVICIO CLIENTES - ENDPOINTS ACTUALIZADOS
+📋 Grupo 1: Gestión Básica de Clientes (CRUD)
+Método	Endpoint	Descripción	Base de Datos
+GET	/api/clientes	Listar todos los clientes (con paginación y filtros)	clientes
+GET	/api/clientes/<int:id>	Obtener cliente por ID	clientes
+GET	/api/clientes/uid/<string:uid>	Obtener cliente por UID	clientes
+GET	/api/clientes/buscar	Buscar por nombre, correo, NIT/CI o teléfono	clientes
+POST	/api/clientes	Crear nuevo cliente	clientes
+PUT	/api/clientes/<int:id>	Actualizar cliente (por ID)	clientes
+PUT	/api/clientes/uid/<string:uid>	Actualizar cliente (por UID)	clientes
+DELETE	/api/clientes/<int:id>	Eliminar cliente (baja lógica)	clientes (estado = 0)
+PATCH	/api/clientes/<int:id>/estado	Activar/desactivar cliente	clientes (estado)
+🎯 Grupo 2: Programa de Fidelización (Puntos)
+Método	Endpoint	Descripción	Base de Datos
+GET	/api/clientes/<int:id>/puntos	Consultar puntos acumulados	clientes.puntos
+GET	/api/clientes/uid/<string:uid>/puntos	Consultar puntos por UID	clientes.puntos
+POST	/api/clientes/<int:id>/puntos/sumar	Sumar puntos (por compras)	clientes.puntos
+POST	/api/clientes/<int:id>/puntos/restar	Restar puntos (por canje)	clientes.puntos
+GET	/api/clientes/top-puntos	Top clientes con más puntos	clientes.puntos
+GET	/api/clientes/top-compras	Top clientes por contador_compras	clientes.contador_compras
+📊 Grupo 3: Historial y Estadísticas
+Método	Endpoint	Descripción	Base de Datos
+GET	/api/clientes/<int:id>/historial/ventas	Historial de ventas del cliente	ventas (join con cliente_id)
+GET	/api/clientes/<int:id>/historial/compras	Resumen de compras agrupadas	ventas agrupado
+GET	/api/clientes/<int:id>/historial/facturas	Facturas emitidas al cliente	facturas (join con cliente_id)
+GET	/api/clientes/<int:id>/estadisticas	Estadísticas completas	clientes + ventas
+GET	/api/clientes/uid/<string:uid>/estadisticas	Estadísticas por UID	clientes + ventas
+GET	/api/clientes/<int:id>/ultima-compra	Última compra realizada	ventas (ordenado por fecha)
+🔄 Grupo 4: Comunicación entre Servicios (Eventos)
+Método	Endpoint	Descripción	Acción
+POST	/api/clientes/eventos/venta-finalizada	Escuchar evento de venta finalizada	Sumar puntos + incrementar contador_compras
+POST	/api/clientes/eventos/puntos-actualizados	Sincronizar puntos desde otro servicio	Actualizar clientes.puntos
+GET	/api/clientes/eventos/health	Health check de eventos	Verificar estado
+📋 Grupo 5: Validaciones y Búsquedas Especiales
+Método	Endpoint	Descripción	Base de Datos
+GET	/api/clientes/verificar/correo	Verificar si correo ya existe	clientes.correo
+GET	/api/clientes/verificar/nit-ci	Verificar si NIT/CI ya existe	clientes.nit_ci
+GET	/api/clientes/verificar/telefono	Verificar si teléfono ya existe	clientes.telefono
+GET	/api/clientes/exportar	Exportar clientes a Excel/CSV	clientes

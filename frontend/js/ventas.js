@@ -19,6 +19,25 @@ const VENTAS_EXTERNAL_ROUTES = {
 };
 let clienteSearchTimeout = null;
 
+async function ventasApiCall(servicePort, route, method = 'GET', bodyData = null) {
+    const url = `${BASE_URL}:${servicePort}${route}`;
+    const options = {
+        method,
+        headers: { 'Content-Type': 'application/json' }
+    };
+
+    if (bodyData && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+        options.body = JSON.stringify(bodyData);
+    }
+
+    const response = await fetch(url, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.message || data.error || `Error HTTP: ${response.status}`);
+    }
+    return data;
+}
+
 function renderVentasModule() {
     const contentArea = document.getElementById('main-content');
     contentArea.innerHTML = `
@@ -349,6 +368,7 @@ function abrirModalNuevaVenta() {
     seleccionarEmpleadoVenta();
     seleccionarProductoVenta();
     renderProductosVenta();
+    actualizarPagoCreditoVenta();
 }
 
 function cerrarModalVenta() {
@@ -359,7 +379,64 @@ function cerrarModalVenta() {
 function renderVentaForm() {
     return `
         <form id="venta-form" onsubmit="registrarVenta(event)" novalidate>
-            <div class="form-grid">
+            <div class="ventas-subsection compact-subsection">
+                <h5>Cliente</h5>
+                <div class="form-grid">
+                    <div class="form-field client-field">
+                        <span>Buscar cliente</span>
+                        <input id="venta-cliente-buscar" type="text" placeholder="Nombre o CI/NIT" oninput="buscarClientesVenta()">
+                        <select id="venta-cliente" onchange="actualizarFidelizacionVenta()">
+                            <option value="">Consumidor final</option>
+                        </select>
+                        <button type="button" class="mini-btn" onclick="toggleNuevoClienteVenta()">Registrar nuevo cliente</button>
+
+                        <div id="nuevo-cliente-box" class="nested-form" hidden>
+                            <div class="ventas-section-header compact-header">
+                                <h4>Nuevo cliente</h4>
+                                <button type="button" class="link-btn" onclick="toggleNuevoClienteVenta(false)">Usar consumidor final</button>
+                            </div>
+                            <div class="form-grid">
+                                <label>
+                                    Nombre *
+                                    <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
+                                </label>
+                                <label>
+                                    CI/NIT *
+                                    <input id="nuevo-cliente-nit" type="text" placeholder="Documento">
+                                </label>
+                                <label>
+                                    Telefono
+                                    <input id="nuevo-cliente-telefono" type="text" placeholder="Opcional">
+                                </label>
+                                <label>
+                                    Correo
+                                    <input id="nuevo-cliente-correo" type="email" placeholder="Si esta vacio se usara correo estandar">
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="fidelizacion-box" class="loyalty-box" hidden>
+                            <strong>Descuento por puntos</strong>
+                            <span id="cliente-puntos-info">Puntos actuales: 0</span>
+                            <label class="inline-check">
+                                <input id="usar-descuento-puntos" type="checkbox" onchange="actualizarTotalVenta()">
+                                Aplicar descuento de fidelizacion
+                            </label>
+                            <label>
+                                Porcentaje permitido
+                                <select id="descuento-puntos-porcentaje" onchange="actualizarTotalVenta()">
+                                    <option value="0">Sin descuento por puntos</option>
+                                </select>
+                            </label>
+                            <small class="field-help">Solo se habilita cuando el cliente tiene puntos suficientes.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ventas-subsection">
+                <h5>Datos de venta</h5>
+                <div class="form-grid">
                 <label>
                     Sucursal *
                     <select id="venta-sucursal-select" onchange="seleccionarSucursalVenta()" required>
@@ -368,50 +445,6 @@ function renderVentaForm() {
                 </label>
                 <input id="venta-sucursal-id" type="hidden">
                 <input id="venta-sucursal-uid" type="hidden">
-                <div class="form-field client-field">
-                    Cliente
-                    <input id="venta-cliente-buscar" type="text" placeholder="Buscar por nombre o CI/NIT" oninput="buscarClientesVenta()">
-                    <select id="venta-cliente" onchange="actualizarFidelizacionVenta()">
-                        <option value="">Consumidor final</option>
-                    </select>
-                    <button type="button" class="mini-btn" onclick="toggleNuevoClienteVenta()">Registrar nuevo cliente</button>
-                    <div id="fidelizacion-box" class="loyalty-box" hidden>
-                        <strong>Fidelizacion</strong>
-                        <span id="cliente-puntos-info">Puntos actuales: 0</span>
-                        <label class="inline-check">
-                            <input id="usar-descuento-puntos" type="checkbox" onchange="actualizarTotalVenta()">
-                            Usar descuento con puntos
-                        </label>
-                        <select id="descuento-puntos-porcentaje" onchange="actualizarTotalVenta()">
-                            <option value="0">Sin descuento</option>
-                        </select>
-                    </div>
-
-                    <div id="nuevo-cliente-box" class="nested-form" hidden>
-                        <div class="ventas-section-header compact-header">
-                            <h4>Nuevo cliente</h4>
-                            <button type="button" class="link-btn" onclick="toggleNuevoClienteVenta(false)">Usar consumidor final</button>
-                        </div>
-                        <div class="form-grid">
-                            <label>
-                                Nombre *
-                                <input id="nuevo-cliente-nombre" type="text" placeholder="Nombre completo">
-                            </label>
-                            <label>
-                                CI/NIT *
-                                <input id="nuevo-cliente-nit" type="text" placeholder="Documento">
-                            </label>
-                            <label>
-                                Telefono
-                                <input id="nuevo-cliente-telefono" type="text" placeholder="Opcional">
-                            </label>
-                            <label>
-                                Correo
-                                <input id="nuevo-cliente-correo" type="email" placeholder="Si esta vacio se usara correo estandar">
-                            </label>
-                        </div>
-                    </div>
-                </div>
                 <label>
                     Empleado
                     <select id="venta-empleado-select" onchange="seleccionarEmpleadoVenta()">
@@ -421,15 +454,12 @@ function renderVentaForm() {
                 <input id="venta-empleado-uid" type="hidden">
                 <label>
                     Tipo de venta *
-                    <select id="venta-tipo" required>
+                    <select id="venta-tipo" onchange="cambiarTipoVenta()" required>
                         <option value="contado">Contado</option>
                         <option value="credito">Credito</option>
                     </select>
                 </label>
-                <label>
-                    Descuento Bs
-                    <input id="venta-descuento" type="number" min="0" step="0.01" value="0">
-                </label>
+                </div>
             </div>
 
             <div class="ventas-subsection">
@@ -458,10 +488,10 @@ function renderVentaForm() {
             </div>
 
             <div class="ventas-subsection">
-                <h5>Pago</h5>
+                <h5>Pago inicial</h5>
                 <div class="form-grid">
                     <label>
-                        Metodo *
+                        Metodo de pago *
                         <select id="venta-metodo-pago" required>
                             <option value="efectivo">Efectivo</option>
                             <option value="tarjeta">Tarjeta</option>
@@ -473,7 +503,13 @@ function renderVentaForm() {
                         Referencia
                         <input id="venta-referencia" type="text" placeholder="Opcional">
                     </label>
+                    <label id="credito-monto-field" hidden>
+                        Monto inicial pagado Bs
+                        <input id="venta-monto-inicial" type="number" min="0" step="0.01" value="0" oninput="actualizarPagoCreditoVenta()">
+                        <small class="field-help">En credito puede ser 0 o menor al total.</small>
+                    </label>
                 </div>
+                <p id="credito-saldo-info" class="muted" hidden>Saldo pendiente: Bs 0.00</p>
             </div>
 
             <div class="venta-total">
@@ -499,11 +535,13 @@ function renderSucursalOptions(emptyLabel = 'Cargando sucursales...') {
 }
 
 function renderEmpleadoOptions(emptyLabel = 'Cargando empleados...') {
-    const options = ventasState.empleados.map(empleado => {
+    const empleados = getEmpleadosDisponiblesVenta();
+    const options = empleados.map(empleado => {
         return `<option value="${escapeHtml(empleado.uid)}">${escapeHtml(empleado.nombre)}</option>`;
     }).join('');
 
-    return `<option value="">${escapeHtml(emptyLabel)}</option>${options}`;
+    const label = getEmpleadoEmptyLabel(emptyLabel, empleados.length);
+    return `<option value="">${escapeHtml(label)}</option>${options}`;
 }
 
 function renderProductoOptions(emptyLabel = 'Cargando productos...') {
@@ -608,6 +646,27 @@ function llenarComboProductos(emptyLabel = 'Selecciona producto') {
     seleccionarProductoVenta();
 }
 
+function getEmpleadosDisponiblesVenta() {
+    const sucursalUid = document.getElementById('venta-sucursal-uid')?.value.trim();
+    const sucursalId = document.getElementById('venta-sucursal-id')?.value;
+    if (!sucursalUid && !sucursalId) return [];
+
+    return ventasState.empleados.filter(empleado => {
+        const activo = !empleado.estado || empleado.estado === 'activo';
+        const mismaSucursal = empleado.sucursal_uid === sucursalUid
+            || (sucursalId && String(empleado.sucursal_id) === String(sucursalId));
+        return activo && mismaSucursal;
+    });
+}
+
+function getEmpleadoEmptyLabel(defaultLabel, empleadosCount) {
+    const sucursalUid = document.getElementById('venta-sucursal-uid')?.value.trim();
+    if (!sucursalUid) return 'Selecciona una sucursal primero';
+    if (!ventasState.empleados.length && /cargando|no disponibles/i.test(defaultLabel)) return defaultLabel;
+    if (!empleadosCount) return 'No hay empleados activos en esta sucursal';
+    return defaultLabel;
+}
+
 function seleccionarSucursalVenta() {
     const select = document.getElementById('venta-sucursal-select');
     if (!select) return;
@@ -615,6 +674,7 @@ function seleccionarSucursalVenta() {
     const sucursal = ventasState.sucursales.find(item => item.uid === select.value);
     document.getElementById('venta-sucursal-id').value = sucursal ? sucursal.id : '';
     document.getElementById('venta-sucursal-uid').value = sucursal ? sucursal.uid : '';
+    llenarComboEmpleados();
     cargarStockSucursalVenta();
 }
 
@@ -707,6 +767,9 @@ async function cargarClientesVentas() {
 
 function buscarClientesVenta() {
     clearTimeout(clienteSearchTimeout);
+    const input = document.getElementById('venta-cliente-buscar');
+    const texto = input ? input.value.trim() : '';
+    llenarComboClientes(texto ? 'Buscando clientes...' : 'Consumidor final');
     clienteSearchTimeout = setTimeout(cargarClientesPorBusqueda, 300);
 }
 
@@ -714,33 +777,76 @@ async function cargarClientesPorBusqueda() {
     const input = document.getElementById('venta-cliente-buscar');
     const texto = input ? input.value.trim() : '';
     const ruta = texto
-        ? `/api/clientes?buscar=${encodeURIComponent(texto)}&limit=20`
+        ? `/api/clientes/buscar?q=${encodeURIComponent(texto)}`
         : '/api/clientes?limit=20';
 
     try {
         const response = await apiCall(API_PORTS.clientes, ruta);
         ventasState.clientes = response.data || [];
-        llenarComboClientes(texto ? 'Selecciona cliente encontrado' : 'Consumidor final');
+        llenarComboClientes(getClienteSearchLabel(texto), getClienteAutoSelectUid(texto));
     } catch (error) {
-        ventasState.clientes = [];
-        llenarComboClientes('Clientes no disponibles');
+        if (!texto) {
+            ventasState.clientes = [];
+            llenarComboClientes('Clientes no disponibles');
+            return;
+        }
+
+        try {
+            const fallback = await apiCall(API_PORTS.clientes, `/api/clientes?buscar=${encodeURIComponent(texto)}&limit=20`);
+            ventasState.clientes = fallback.data || [];
+            llenarComboClientes(getClienteSearchLabel(texto), getClienteAutoSelectUid(texto));
+        } catch (fallbackError) {
+            ventasState.clientes = [];
+            llenarComboClientes('Clientes no disponibles');
+        }
     }
 }
 
-function llenarComboClientes(emptyLabel = 'Consumidor final') {
+function getClienteSearchLabel(texto) {
+    if (!texto) return 'Consumidor final';
+    const total = ventasState.clientes.filter(cliente => cliente.estado !== 'inactivo').length;
+    if (!total) return 'No se encontraron clientes';
+    return `Selecciona cliente (${total} encontrado${total === 1 ? '' : 's'})`;
+}
+
+function getClienteAutoSelectUid(texto) {
+    const query = normalizeSpaces(texto || '').toLowerCase();
+    if (!query) return '';
+
+    const exacto = ventasState.clientes.find(cliente => {
+        const nombre = normalizeSpaces(cliente.nombre || '').toLowerCase();
+        const documento = normalizeSpaces(cliente.nit_ci || '').toLowerCase();
+        return documento === query || nombre === query;
+    });
+
+    return exacto ? exacto.uid : '';
+}
+
+function llenarComboClientes(emptyLabel = 'Consumidor final', selectedUid = '') {
     const select = document.getElementById('venta-cliente');
     if (!select) return;
 
-    select.innerHTML = `<option value="">${emptyLabel}</option>`;
+    select.innerHTML = `<option value="">${escapeHtml(emptyLabel)}</option>`;
     ventasState.clientes
         .filter(cliente => cliente.estado !== 'inactivo')
         .forEach(cliente => {
             const option = document.createElement('option');
             option.value = cliente.uid;
-            option.textContent = `${cliente.nombre} - ${cliente.nit_ci || 'S/N'} (${Number(cliente.puntos || 0)} pts)`;
+            option.textContent = formatClienteOption(cliente);
             select.appendChild(option);
         });
+
+    if (selectedUid) {
+        select.value = selectedUid;
+    }
     actualizarFidelizacionVenta();
+}
+
+function formatClienteOption(cliente) {
+    const nombre = cliente.nombre || 'Cliente sin nombre';
+    const documento = cliente.nit_ci || 'S/N';
+    const puntos = Number(cliente.puntos || 0);
+    return `${nombre} - CI/NIT ${documento} - ${puntos} pts`;
 }
 
 function actualizarFidelizacionVenta() {
@@ -755,7 +861,7 @@ function actualizarFidelizacionVenta() {
     if (!cliente) {
         box.hidden = true;
         useCheckbox.checked = false;
-        percentSelect.innerHTML = '<option value="0">Sin descuento</option>';
+        percentSelect.innerHTML = '<option value="0">Sin descuento por puntos</option>';
         actualizarTotalVenta();
         return;
     }
@@ -765,7 +871,7 @@ function actualizarFidelizacionVenta() {
     box.hidden = false;
     info.textContent = `Puntos actuales: ${puntos}. Descuento permitido: ${maxPercent}%`;
 
-    const options = ['<option value="0">Sin descuento</option>'];
+    const options = ['<option value="0">Sin descuento por puntos</option>'];
     for (let percent = 10; percent <= maxPercent; percent += 10) {
         options.push(`<option value="${percent}">${percent}% de descuento</option>`);
     }
@@ -870,7 +976,7 @@ function renderTablaVentas() {
                         <td>${escapeHtml(getNombreClienteVenta(venta))}</td>
                         <td>${escapeHtml(getNombreSucursalVenta(venta))}</td>
                         <td>Bs ${centavosToMoney(venta.total_centavos)}</td>
-                        <td><span class="${venta.estado === 'anulada' ? 'status-pill cancelled' : 'status-pill'}">${escapeHtml(venta.estado)}</span></td>
+                        <td>${renderEstadoVenta(venta)}</td>
                         <td class="table-actions">
                             <button type="button" class="table-action view-action" onclick="verDetalleVenta(${venta.id})">Ver</button>
                             <button type="button" class="table-action pdf-table-action" onclick="descargarComprobante(${venta.id})">PDF</button>
@@ -896,15 +1002,51 @@ function getVentasFiltradas() {
             getNombreSucursalVenta(venta),
             venta.sucursal_uid,
             centavosToMoney(venta.total_centavos),
-            venta.estado
+            venta.estado,
+            venta.estado_pago,
+            centavosToMoney(venta.saldo_pendiente_centavos)
         ];
         return values.some(value => String(value || '').toLowerCase().includes(filtro));
     });
 }
 
+function renderEstadoVenta(venta) {
+    const estadoClass = venta.estado === 'anulada' ? 'status-pill cancelled' : 'status-pill';
+    const saldo = Number(venta.saldo_pendiente_centavos || 0);
+    const estadoPago = venta.estado_pago || 'pagado';
+    const saldoTexto = saldo > 0 ? ` - Saldo Bs ${centavosToMoney(saldo)}` : '';
+
+    return `
+        <div class="payment-status-cell">
+            <span class="${estadoClass}">${escapeHtml(venta.estado)}</span>
+            <span class="status-pill payment-status">${escapeHtml(formatEstadoPago(estadoPago))}${escapeHtml(saldoTexto)}</span>
+        </div>
+    `;
+}
+
+function formatEstadoPago(value) {
+    const labels = {
+        pagado: 'Pago pagado',
+        parcial: 'Pago parcial',
+        pendiente: 'Pago pendiente',
+        anulada: 'Pago anulado'
+    };
+    return labels[value] || value || 'Pago pagado';
+}
+
 function getNombreClienteVenta(venta) {
+    if (venta.cliente_nombre) return venta.cliente_nombre;
+    if (venta.factura && venta.factura.cliente_nombre) return venta.factura.cliente_nombre;
     if (!venta.cliente_uid) return 'Consumidor final';
     return ventasState.clientesPorUid[venta.cliente_uid] || venta.cliente_uid;
+}
+
+function guardarNombreClienteDesdeVenta(venta) {
+    if (!venta || !venta.cliente_uid) return;
+    const nombre = venta.cliente_nombre || venta.factura?.cliente_nombre;
+    if (nombre) {
+        ventasState.clientesPorUid[venta.cliente_uid] = nombre;
+    }
 }
 
 function getNombreSucursalVenta(venta) {
@@ -929,8 +1071,12 @@ function renderDetalleVenta(venta) {
         <div class="detalle-grid">
             <p><strong>Venta:</strong> ${escapeHtml(venta.uid)}</p>
             <p><strong>Cliente:</strong> ${escapeHtml(venta.cliente_uid || 'Consumidor final')}</p>
+            <p><strong>Tipo de venta:</strong> ${escapeHtml(venta.tipo_venta || 'contado')}</p>
             <p><strong>Total:</strong> Bs ${centavosToMoney(venta.total_centavos)}</p>
+            <p><strong>Pagado:</strong> Bs ${centavosToMoney(venta.monto_pagado_centavos)}</p>
+            <p><strong>Saldo pendiente:</strong> Bs ${centavosToMoney(venta.saldo_pendiente_centavos)}</p>
             <p><strong>Estado:</strong> ${escapeHtml(venta.estado)}</p>
+            <p><strong>Estado de pago:</strong> ${escapeHtml(formatEstadoPago(venta.estado_pago))}</p>
         </div>
         <h5>Productos</h5>
         <table class="ventas-table">
@@ -963,13 +1109,13 @@ function renderDetalleVenta(venta) {
                 </tr>
             </thead>
             <tbody>
-                ${(venta.pagos || []).map(pago => `
+                ${(venta.pagos || []).length ? (venta.pagos || []).map(pago => `
                     <tr>
                         <td>${escapeHtml(pago.metodo_pago)}</td>
                         <td>Bs ${centavosToMoney(pago.monto_centavos)}</td>
                         <td>${escapeHtml(pago.referencia || '-')}</td>
                     </tr>
-                `).join('')}
+                `).join('') : '<tr><td colspan="3">Sin pagos registrados todavia.</td></tr>'}
             </tbody>
         </table>
         <div class="modal-footer">
@@ -1094,10 +1240,11 @@ function validarVentaAntesDeEnviar() {
     const nuevoClienteNit = normalizeSpaces(document.getElementById('nuevo-cliente-nit')?.value || '');
     const nuevoClienteTelefono = normalizeSpaces(document.getElementById('nuevo-cliente-telefono')?.value || '');
     const nuevoClienteCorreo = normalizeSpaces(document.getElementById('nuevo-cliente-correo')?.value || '').toLowerCase();
-    const descuento = Number(document.getElementById('venta-descuento').value || 0);
     const referencia = document.getElementById('venta-referencia').value.trim();
     const usarDescuentoPuntos = document.getElementById('usar-descuento-puntos')?.checked || false;
     const porcentajePuntos = Number(document.getElementById('descuento-puntos-porcentaje')?.value || 0);
+    const tipoVenta = document.getElementById('venta-tipo')?.value || 'contado';
+    const montoPago = getMontoPagoVenta();
     const total = calcularTotalVenta();
     const subtotal = calcularSubtotalVenta();
 
@@ -1125,10 +1272,15 @@ function validarVentaAntesDeEnviar() {
     }
     if (empleadoUid && !isSafeText(empleadoUid)) errors.push('El UID de empleado no puede contener HTML.');
     if (referencia && !isSafeText(referencia)) errors.push('La referencia de pago no puede contener HTML.');
-    if (!Number.isFinite(descuento) || descuento < 0) errors.push('El descuento no puede ser negativo.');
-    if (descuento > subtotal) errors.push('El descuento no puede ser mayor al subtotal.');
     if (!ventasState.productos.length) errors.push('Agrega al menos un producto.');
     if (total <= 0) errors.push('El total de la venta debe ser mayor a cero.');
+    if (tipoVenta === 'credito') {
+        if (!Number.isFinite(montoPago) || montoPago < 0) errors.push('El monto inicial no puede ser negativo.');
+        if (montoPago > total) errors.push('El monto inicial no puede superar el total de la venta.');
+    }
+    if (tipoVenta === 'contado' && montoPago !== total) {
+        errors.push('En ventas al contado el monto pagado debe ser igual al total.');
+    }
 
     ventasState.productos.forEach((producto, index) => {
         if (!isSafeRequiredText(producto.producto_uid)) {
@@ -1163,7 +1315,6 @@ async function obtenerClienteParaVenta() {
 
     const nitCi = normalizeSpaces(document.getElementById('nuevo-cliente-nit').value);
     const clientePayload = {
-        uid: `CLI-${nitCi.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || Date.now()}`,
         nombre: normalizeSpaces(document.getElementById('nuevo-cliente-nombre').value),
         nit_ci: nitCi,
         telefono: normalizeSpaces(document.getElementById('nuevo-cliente-telefono').value) || '00000000',
@@ -1171,18 +1322,10 @@ async function obtenerClienteParaVenta() {
         estado: 'activo'
     };
 
-    try {
-        const response = await apiCall(API_PORTS.clientes, '/api/clientes', 'POST', clientePayload);
-        const clienteCreado = typeof response.data === 'object' && response.data !== null
-            ? { ...clientePayload, ...response.data }
-            : clientePayload;
-        ventasState.clientes.unshift(clienteCreado);
-        llenarComboClientes();
-        document.getElementById('venta-cliente').value = clienteCreado.uid;
-        return clienteCreado;
-    } catch (error) {
-        throw new Error('No se pudo registrar el nuevo cliente.');
-    }
+    return {
+        ...clientePayload,
+        crear_nuevo: true
+    };
 }
 
 async function registrarVenta(event) {
@@ -1197,6 +1340,7 @@ async function registrarVenta(event) {
 
     let cliente = null;
     const total = calcularTotalVenta();
+    const montoPago = getMontoPagoVenta();
 
     try {
         cliente = await obtenerClienteParaVenta();
@@ -1207,17 +1351,18 @@ async function registrarVenta(event) {
 
     const empleadoUid = document.getElementById('venta-empleado-uid').value.trim();
     const empleado = ventasState.empleados.find(item => item.uid === empleadoUid) || null;
+    const clientePayloadVenta = cliente ? { ...cliente } : null;
 
     const payload = {
         sucursal_id: Number(document.getElementById('venta-sucursal-id').value),
         sucursal_uid: document.getElementById('venta-sucursal-uid').value.trim(),
         cliente_id: cliente ? cliente.id : null,
         cliente_uid: cliente ? cliente.uid : null,
-        cliente,
+        cliente: clientePayloadVenta,
         empleado_id: empleado ? empleado.id : null,
         empleado_uid: empleadoUid || null,
         tipo_venta: document.getElementById('venta-tipo').value,
-        descuento: Number(document.getElementById('venta-descuento').value || 0).toFixed(2),
+        descuento: '0.00',
         fidelizacion: {
             usar_descuento: document.getElementById('usar-descuento-puntos')?.checked || false,
             porcentaje_descuento: Number(document.getElementById('descuento-puntos-porcentaje')?.value || 0)
@@ -1225,25 +1370,26 @@ async function registrarVenta(event) {
         productos: ventasState.productos,
         pago: {
             metodo_pago: document.getElementById('venta-metodo-pago').value,
-            monto: total.toFixed(2),
+            monto: montoPago.toFixed(2),
             referencia: document.getElementById('venta-referencia').value.trim() || null
         }
     };
 
     try {
-        const response = await apiCall(API_PORTS.ventas, '/api/ventas', 'POST', payload);
+        const response = await ventasApiCall(API_PORTS.ventas, '/api/ventas', 'POST', payload);
         const warnings = response.advertencias && response.advertencias.length
             ? ` Advertencias: ${response.advertencias.join(' ')}`
             : '';
         const puntos = response.fidelizacion && response.fidelizacion.puntos_ganados
             ? ` Puntos ganados: ${response.fidelizacion.puntos_ganados}.`
             : '';
+        guardarNombreClienteDesdeVenta(response.data);
         mostrarMensajeVenta(`Venta registrada correctamente.${puntos}${warnings}`, response.status === 'warning');
         ventasState.productos = [];
         await cargarVentas();
         setTimeout(cerrarModalVenta, 700);
     } catch (error) {
-        mostrarMensajeVenta('No se pudo registrar la venta. Revisa los datos y servicios.', true);
+        mostrarMensajeVenta(`No se pudo registrar la venta: ${error.message || 'revisa los datos y servicios.'}`, true);
     }
 }
 
@@ -1251,6 +1397,46 @@ function actualizarTotalVenta() {
     const totalLabel = document.getElementById('venta-total');
     if (!totalLabel) return;
     totalLabel.textContent = `Bs ${calcularTotalVenta().toFixed(2)}`;
+    actualizarPagoCreditoVenta();
+}
+
+function actualizarPagoCreditoVenta() {
+    const tipo = document.getElementById('venta-tipo')?.value || 'contado';
+    const montoField = document.getElementById('credito-monto-field');
+    const montoInput = document.getElementById('venta-monto-inicial');
+    const saldoInfo = document.getElementById('credito-saldo-info');
+    const total = calcularTotalVenta();
+    const esCredito = tipo === 'credito';
+
+    if (montoField) montoField.hidden = !esCredito;
+    if (saldoInfo) saldoInfo.hidden = !esCredito;
+
+    if (!esCredito) {
+        if (montoInput) montoInput.value = total.toFixed(2);
+        return;
+    }
+
+    const montoInicial = Math.min(Number(montoInput?.value || 0), total);
+    const saldo = Math.max(total - montoInicial, 0);
+    if (saldoInfo) {
+        saldoInfo.textContent = `Saldo pendiente: Bs ${saldo.toFixed(2)}`;
+    }
+}
+
+function cambiarTipoVenta() {
+    const tipo = document.getElementById('venta-tipo')?.value || 'contado';
+    const montoInput = document.getElementById('venta-monto-inicial');
+    if (montoInput) {
+        montoInput.value = tipo === 'credito' ? '0.00' : calcularTotalVenta().toFixed(2);
+    }
+    actualizarPagoCreditoVenta();
+}
+
+function getMontoPagoVenta() {
+    const tipo = document.getElementById('venta-tipo')?.value || 'contado';
+    const total = calcularTotalVenta();
+    if (tipo === 'contado') return total;
+    return Math.min(Number(document.getElementById('venta-monto-inicial')?.value || 0), total);
 }
 
 function calcularSubtotalVenta() {
@@ -1260,9 +1446,7 @@ function calcularSubtotalVenta() {
 }
 
 function calcularTotalVenta() {
-    const descuentoInput = document.getElementById('venta-descuento');
-    const descuento = Number(descuentoInput ? descuentoInput.value || 0 : 0);
-    return Math.max(calcularSubtotalVenta() - descuento - calcularDescuentoPuntosVenta(), 0);
+    return Math.max(calcularSubtotalVenta() - calcularDescuentoPuntosVenta(), 0);
 }
 
 function calcularDescuentoPuntosVenta() {
@@ -1319,17 +1503,21 @@ function normalizarSucursal(item) {
 function normalizarEmpleado(item) {
     const id = item.id ?? item.empleado_id ?? item.id_empleado ?? '';
     const uid = item.uid || item.empleado_uid || item.codigo || item.codigo_empleado || (id ? `EMP-${id}` : '');
+    const sucursal_id = item.sucursal_id ?? item.id_sucursal ?? '';
+    const sucursal_uid = item.sucursal_uid || item.uid_sucursal || '';
+    const estado = String(item.estado || '').trim().toLowerCase();
     const nombreCompleto = normalizeSpaces([
         item.nombre || item.nombres || '',
         item.apellido || item.apellidos || ''
     ].join(' '));
     const nombre = nombreCompleto || item.cargo || item.usuario || uid;
 
-    return { id, uid, nombre };
+    return { id, uid, nombre, sucursal_id, sucursal_uid, estado };
 }
 
 function normalizarProducto(item) {
     const id = item.id ?? item.producto_id ?? item.id_producto ?? '';
+    // Productos deberia devolver uid; mientras tanto usamos codigo como respaldo para no romper el combo.
     const uid = item.uid || item.producto_uid || item.codigo || item.codigo_producto || (id ? `PROD-${id}` : '');
     const nombre = item.nombre || item.nombre_producto || item.descripcion || uid;
     const precio = normalizarPrecioProducto(item);
@@ -1365,7 +1553,8 @@ function normalizarStockProducto(item) {
 function normalizarPrecioProducto(item) {
     const centavos = item.precio_centavos ?? item.precio_unitario_centavos ?? item.precio_venta_centavos;
     if (centavos !== undefined && centavos !== null && centavos !== '') {
-        return Number(centavos) / 100;
+        const number = Number(String(centavos).replace(',', '.')) || 0;
+        return number > 1000 ? number / 100 : number;
     }
 
     const precio = item.precio ?? item.precio_venta ?? item.precio_unitario ?? item.costo ?? 0;
@@ -1485,9 +1674,6 @@ function formatDate(value) {
 }
 
 document.addEventListener('input', event => {
-    if (event.target && event.target.id === 'venta-descuento') {
-        actualizarTotalVenta();
-    }
     if (event.target && event.target.id === 'producto-cantidad') {
         actualizarStockProductoVenta();
     }
