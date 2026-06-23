@@ -4,6 +4,8 @@
 // =========================================================================
 
 const INVENTARIO_API_BASE = "http://127.0.0.1:5002";
+const PRODUCTOS_API_BASE = "http://127.0.0.1:5003";
+const ADMIN_API_BASE = "http://127.0.0.1:5006";
 
 let cacheProductos = [];
 let cacheSucursales = [];
@@ -121,6 +123,10 @@ async function consultarBalanceInventario() {
         renderizarEncabezadoInventario();
         configurarBotonMovimientosComoVer();
 
+        // Primero se cargan catálogos maestros.
+        // Esto permite que aparezcan productos y sucursales nuevas aunque todavía no tengan stock.
+        await cargarCatalogosMaestros();
+
         const response = await fetch(`${INVENTARIO_API_BASE}/inventory/balance`);
         const result = await response.json();
 
@@ -129,14 +135,13 @@ async function consultarBalanceInventario() {
 
         tablaBody.innerHTML = "";
 
-       if (result.status === "success" && result.data && result.data.length > 0) {
+        if (result.status === "success" && result.data && result.data.length > 0) {
             cacheInventario = result.data;
-             extraerElementosParaSelects(result.data);
 
-             result.data.forEach(item => {
-            const tr = document.createElement("tr");
+            result.data.forEach(item => {
+                const tr = document.createElement("tr");
 
-            const alertaStock = item.stock_actual <= item.stock_minimo
+                const alertaStock = item.stock_actual <= item.stock_minimo
                     ? `<span class="badge bg-danger">Reabastecer</span>`
                     : `<span class="badge bg-success">Óptimo</span>`;
 
@@ -162,10 +167,13 @@ async function consultarBalanceInventario() {
             actualizarFormulariosOpciones();
 
         } else {
+            cacheInventario = [];
+            actualizarFormulariosOpciones();
+
             tablaBody.innerHTML = `
                 <tr>
                     <td colspan="7" class="text-center p-4 text-muted">
-                        Inventario vacío. Cargue el archivo inicial con el botón de Excel.
+                        Inventario vacío. Puede registrar stock desde el formulario de recepción.
                     </td>
                 </tr>
             `;
@@ -267,77 +275,171 @@ async function consultarMovimientosInventario() {
 // CARGAR SELECTORES DE PRODUCTOS Y SUCURSALES
 // ---------------------------------------------------------
 
-function extraerElementosParaSelects(data) {
-    const prodMap = new Map();
-    const sucMap = new Map();
+async function cargarCatalogosMaestros() {
+    await Promise.all([
+        cargarProductosMaestros(),
+        cargarSucursalesMaestras()
+    ]);
+}
 
-    data.forEach(item => {
-        if (item.producto_id) {
-            prodMap.set(item.producto_id, {
+async function cargarProductosMaestros() {
+    try {
+        const response = await fetch(`${PRODUCTOS_API_BASE}/api/productos`);
+        const result = await response.json();
+
+        if (result.status === "success" && Array.isArray(result.data)) {
+            cacheProductos = result.data
+                .filter(p => !p.estado || String(p.estado).toLowerCase() === "activo")
+                .map(p => ({
+                    id: parseInt(p.id),
+                    nombre: p.nombre,
+                    codigo: p.codigo,
+                    uid: p.uid || p.producto_uid || p.codigo || `PROD-${p.id}`
+                }));
+        }
+    } catch (error) {
+        console.error("Error al cargar productos maestros:", error);
+        alert("No se pudo cargar la lista de productos. Verifique que producto_service esté corriendo en el puerto 5003.");
+    }
+}
+
+async function cargarSucursalesMaestras() {
+    try {
+        const response = await fetch(`${ADMIN_API_BASE}/api/sucursales`);
+        const result = await response.json();
+
+        if (result.status === "success" && Array.isArray(result.data)) {
+            cacheSucursales = result.data
+                .filter(s => !s.estado || String(s.estado).toLowerCase() === "activa")
+                .map(s => ({
+                    id: parseInt(s.id),
+                    nombre: s.nombre,
+                    uid: s.uid || s.sucursal_uid || s.codigo || `SUC-${s.id}`
+                }));
+        }
+    } catch (error) {
+        console.error("Error al cargar sucursales maestras:", error);
+        alert("No se pudo cargar la lista de sucursales. Verifique que administracion_service esté corriendo en el puerto 5006.");
+    }
+}
+
+function llenarSelectProductos(selectId, productos, placeholder, mostrarStock = false) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    select.innerHTML = `<option value="">${placeholder}</option>`;
+
+    productos.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.setAttribute("data-uid", p.uid || p.codigo || `PROD-${p.id}`);
+
+        if (mostrarStock) {
+            opt.textContent = `${p.nombre} [${p.codigo}] - Stock: ${p.stock}`;
+        } else {
+            opt.textContent = `${p.nombre} [${p.codigo}]`;
+        }
+
+        select.appendChild(opt);
+    });
+}
+
+function llenarSelectSucursales(selectId, sucursales, placeholder) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    select.innerHTML = `<option value="">${placeholder}</option>`;
+
+    sucursales.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.setAttribute("data-uid", s.uid);
+        opt.textContent = `${s.nombre} (${s.uid})`;
+        select.appendChild(opt);
+    });
+}
+
+function obtenerProductosInventariadosConStock(sucursalId = null) {
+    const productosMap = new Map();
+
+    cacheInventario.forEach(item => {
+        const tieneStock = parseInt(item.stock_actual) > 0;
+        const coincideSucursal = !sucursalId || parseInt(item.sucursal_id) === parseInt(sucursalId);
+
+        if (item.producto_id && tieneStock && coincideSucursal) {
+            productosMap.set(item.producto_id, {
                 id: parseInt(item.producto_id),
                 nombre: item.producto_nombre,
                 codigo: item.producto_codigo,
-                uid: item.producto_uid
-            });
-        }
-
-        if (item.sucursal_id) {
-            sucMap.set(item.sucursal_id, {
-                id: parseInt(item.sucursal_id),
-                nombre: item.sucursal_uid
+                uid: item.producto_uid || item.producto_codigo || `PROD-${item.producto_id}`,
+                stock: item.stock_actual
             });
         }
     });
 
-    cacheProductos = Array.from(prodMap.values());
-    cacheSucursales = Array.from(sucMap.values());
+    return Array.from(productosMap.values());
+}
+
+function actualizarProductosBajaPorSucursal() {
+    const selectSucursal = document.getElementById("select-baja-sucursal");
+    const selectProducto = document.getElementById("select-baja-producto");
+
+    if (!selectSucursal || !selectProducto) return;
+
+    const sucursalId = parseInt(selectSucursal.value);
+
+    if (!sucursalId) {
+        selectProducto.innerHTML = `<option value="">Seleccione primero la sucursal</option>`;
+        selectProducto.disabled = true;
+        return;
+    }
+
+    const productosDisponibles = obtenerProductosInventariadosConStock(sucursalId);
+
+    if (productosDisponibles.length === 0) {
+        selectProducto.innerHTML = `<option value="">No hay productos con stock en esta sucursal</option>`;
+        selectProducto.disabled = true;
+        return;
+    }
+
+    selectProducto.disabled = false;
+
+    llenarSelectProductos(
+        "select-baja-producto",
+        productosDisponibles,
+        "-- Seleccionar Producto --",
+        true
+    );
 }
 
 function actualizarFormulariosOpciones() {
-    const selectoresProductosGenerales = [
+    // Recepción de stock: muestra TODOS los productos registrados en producto_service.
+    llenarSelectProductos(
         "select-ingreso-producto",
-        "select-baja-producto"
-    ];
+        cacheProductos,
+        "-- Seleccionar Producto --"
+    );
 
-    const selectoresSucursales = [
+    // Sucursales: muestra TODAS las sucursales activas desde administracion_service.
+    [
         "select-ingreso-sucursal",
         "select-baja-sucursal",
         "select-transfer-origen",
         "select-transfer-destino"
-    ];
-
-    // Productos generales para ingreso y baja
-    selectoresProductosGenerales.forEach(id => {
-        const select = document.getElementById(id);
-        if (!select) return;
-
-        select.innerHTML = `<option value="">-- Seleccionar Producto --</option>`;
-
-        cacheProductos.forEach(p => {
-            const opt = document.createElement("option");
-            opt.value = p.id;
-            opt.setAttribute("data-uid", p.uid);
-            opt.textContent = `${p.nombre} [${p.codigo}]`;
-            select.appendChild(opt);
-        });
+    ].forEach(id => {
+        llenarSelectSucursales(id, cacheSucursales, "-- Seleccionar Sucursal --");
     });
 
-    // Sucursales para ingreso, baja y transferencia
-    selectoresSucursales.forEach(id => {
-        const select = document.getElementById(id);
-        if (!select) return;
+    // Baja: el producto se filtra según la sucursal seleccionada.
+    const selectBajaSucursal = document.getElementById("select-baja-sucursal");
 
-        select.innerHTML = `<option value="">-- Seleccionar Sucursal --</option>`;
+    if (selectBajaSucursal) {
+        selectBajaSucursal.onchange = actualizarProductosBajaPorSucursal;
+    }
 
-        cacheSucursales.forEach(s => {
-            const opt = document.createElement("option");
-            opt.value = s.id;
-            opt.textContent = s.nombre;
-            select.appendChild(opt);
-        });
-    });
+    actualizarProductosBajaPorSucursal();
 
-    // El producto de transferencia se llena según la sucursal origen
+    // Transferencia: el producto se filtra según la sucursal origen.
     const selectOrigen = document.getElementById("select-transfer-origen");
 
     if (selectOrigen) {
@@ -346,6 +448,7 @@ function actualizarFormulariosOpciones() {
 
     actualizarProductosTransferenciaPorOrigen();
 }
+
 function actualizarProductosTransferenciaPorOrigen() {
     const selectOrigen = document.getElementById("select-transfer-origen");
     const selectProducto = document.getElementById("select-transfer-producto");
@@ -373,7 +476,7 @@ function actualizarProductosTransferenciaPorOrigen() {
                 id: parseInt(item.producto_id),
                 nombre: item.producto_nombre,
                 codigo: item.producto_codigo,
-                uid: item.producto_uid,
+                uid: item.producto_uid || item.producto_codigo || `PROD-${item.producto_id}`,
                 stock: item.stock_actual
             });
         }
@@ -389,14 +492,14 @@ function actualizarProductosTransferenciaPorOrigen() {
 
     selectProducto.disabled = false;
 
-    productosDisponibles.forEach(p => {
-        const opt = document.createElement("option");
-        opt.value = p.id;
-        opt.setAttribute("data-uid", p.uid);
-        opt.textContent = `${p.nombre} [${p.codigo}] - Stock: ${p.stock}`;
-        selectProducto.appendChild(opt);
-    });
+    llenarSelectProductos(
+        "select-transfer-producto",
+        productosDisponibles,
+        "-- Seleccionar Producto --",
+        true
+    );
 }
+
 // ---------------------------------------------------------
 // INICIALIZAR VISTA DE INVENTARIO
 // ---------------------------------------------------------
@@ -442,7 +545,7 @@ function inicializarVistaInventario() {
             producto_id: parseInt(selectProd.value),
             producto_uid: optProdSelected.getAttribute("data-uid") || "PROD-MOCK",
             sucursal_id: parseInt(selectSuc.value),
-            sucursal_uid: optSucSelected.text,
+            sucursal_uid: optSucSelected.getAttribute("data-uid") || optSucSelected.textContent,
             cantidad: cantidad
         };
 
@@ -479,7 +582,7 @@ function inicializarVistaInventario() {
         const cantidadInput = document.getElementById("baja-cantidad");
 
         if (!selectProd.value || !selectSuc.value) {
-            alert("Por favor seleccione un producto y una sucursal válidos.");
+            alert("Por favor seleccione una sucursal y un producto con stock disponible.");
             return;
         }
 
