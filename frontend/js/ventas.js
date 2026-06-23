@@ -6,6 +6,7 @@ const ventasState = {
     empleados: [],
     catalogoProductos: [],
     stockPorProducto: {},
+    stockSucursalCargado: false,
     clientesPorUid: {},
     sucursalesPorUid: {},
     ventasFiltro: '',
@@ -15,8 +16,9 @@ const VENTAS_EXTERNAL_ROUTES = {
     sucursales: '/api/sucursales',
     empleados: '/api/empleados',
     productos: '/api/productos',
-    stockSucursal: '/api/inventario/stock'
+    stockSucursal: '/inventory/balance'
 };
+const VENTA_EXITOSA_STORAGE_KEY = 'ventas_ultima_venta_exitosa';
 let clienteSearchTimeout = null;
 
 async function ventasApiCall(servicePort, route, method = 'GET', bodyData = null) {
@@ -86,6 +88,7 @@ function renderVentasModule() {
 
     cargarVentas();
     cargarClientesVentas();
+    setTimeout(mostrarVentaExitosaPendiente, 600);
 }
 
 function mostrarVistaVentas(vista) {
@@ -121,6 +124,7 @@ function renderReportesPanel() {
                 <select id="reporte-tipo" onchange="toggleReportePeriodo()">
                     <option value="dia">Reporte del dia</option>
                     <option value="mes">Reporte por mes</option>
+                    <option value="rango">Reporte por rango</option>
                 </select>
             </label>
             <label id="reporte-fecha-field">
@@ -130,6 +134,14 @@ function renderReportesPanel() {
             <label id="reporte-mes-field" hidden>
                 Mes
                 <input id="reporte-mes" type="month" value="${month}">
+            </label>
+            <label id="reporte-inicio-field" hidden>
+                Desde
+                <input id="reporte-fecha-inicio" type="date" value="${today}">
+            </label>
+            <label id="reporte-fin-field" hidden>
+                Hasta
+                <input id="reporte-fecha-fin" type="date" value="${today}">
             </label>
         </div>
         <div id="ventas-reporte-contenido" class="report-content">
@@ -142,8 +154,12 @@ function toggleReportePeriodo() {
     const tipo = document.getElementById('reporte-tipo')?.value || 'dia';
     const fechaField = document.getElementById('reporte-fecha-field');
     const mesField = document.getElementById('reporte-mes-field');
+    const inicioField = document.getElementById('reporte-inicio-field');
+    const finField = document.getElementById('reporte-fin-field');
     if (fechaField) fechaField.hidden = tipo !== 'dia';
     if (mesField) mesField.hidden = tipo !== 'mes';
+    if (inicioField) inicioField.hidden = tipo !== 'rango';
+    if (finField) finField.hidden = tipo !== 'rango';
 }
 
 async function cargarReporteVentas() {
@@ -153,9 +169,15 @@ async function cargarReporteVentas() {
     const tipo = document.getElementById('reporte-tipo')?.value || 'dia';
     const fecha = document.getElementById('reporte-fecha')?.value || getTodayInputValue();
     const mes = document.getElementById('reporte-mes')?.value || getTodayInputValue().slice(0, 7);
-    const query = tipo === 'mes'
-        ? `tipo=mes&mes=${encodeURIComponent(mes)}`
-        : `tipo=dia&fecha=${encodeURIComponent(fecha)}`;
+    const fechaInicio = document.getElementById('reporte-fecha-inicio')?.value || fecha;
+    const fechaFin = document.getElementById('reporte-fecha-fin')?.value || fechaInicio;
+    let query = `tipo=dia&fecha=${encodeURIComponent(fecha)}`;
+    if (tipo === 'mes') {
+        query = `tipo=mes&mes=${encodeURIComponent(mes)}`;
+    }
+    if (tipo === 'rango') {
+        query = `tipo=rango&fecha_inicio=${encodeURIComponent(fechaInicio)}&fecha_fin=${encodeURIComponent(fechaFin)}`;
+    }
 
     contenido.innerHTML = '<p class="muted">Cargando reporte...</p>';
     try {
@@ -378,7 +400,7 @@ function cerrarModalVenta() {
 
 function renderVentaForm() {
     return `
-        <form id="venta-form" onsubmit="registrarVenta(event)" novalidate>
+        <div id="venta-form">
             <div class="ventas-subsection compact-subsection">
                 <h5>Cliente</h5>
                 <div class="form-grid">
@@ -475,7 +497,7 @@ function renderVentaForm() {
                     </label>
                     <label>
                         Cantidad
-                        <input id="producto-cantidad" type="number" min="1" value="1" aria-label="Cantidad">
+                        <input id="producto-cantidad" type="number" min="1" step="1" value="1" aria-label="Cantidad">
                     </label>
                     <label>
                         Precio Bs
@@ -493,6 +515,7 @@ function renderVentaForm() {
                     <label>
                         Metodo de pago *
                         <select id="venta-metodo-pago" required>
+                            <option value="sin_pago">Sin pago inicial</option>
                             <option value="efectivo">Efectivo</option>
                             <option value="tarjeta">Tarjeta</option>
                             <option value="qr">QR</option>
@@ -520,9 +543,9 @@ function renderVentaForm() {
             <div id="venta-mensaje" class="ventas-message" hidden></div>
             <div class="modal-footer">
                 <button type="button" class="action-btn ghost-action" onclick="cerrarModalVenta()">Cancelar</button>
-                <button type="submit" class="action-btn create-action">Registrar venta</button>
+                <button type="button" class="action-btn create-action" onclick="registrarVenta(event)">Registrar venta</button>
             </div>
-        </form>
+        </div>
     `;
 }
 
@@ -545,12 +568,13 @@ function renderEmpleadoOptions(emptyLabel = 'Cargando empleados...') {
 }
 
 function renderProductoOptions(emptyLabel = 'Cargando productos...') {
-    const options = ventasState.catalogoProductos.map(producto => {
+    const productos = getProductosDisponiblesVenta();
+    const options = productos.map(producto => {
         return `<option value="${escapeHtml(producto.uid)}">${escapeHtml(producto.nombre)} - Bs ${Number(producto.precio).toFixed(2)}</option>`;
     }).join('');
 
     return `
-        <option value="">${escapeHtml(emptyLabel)}</option>
+        <option value="">${escapeHtml(getProductoEmptyLabel(emptyLabel, productos.length))}</option>
         ${options}
     `;
 }
@@ -599,29 +623,39 @@ async function cargarProductosVentas() {
 
 async function cargarStockSucursalVenta() {
     const sucursalUid = document.getElementById('venta-sucursal-uid')?.value.trim();
+    const sucursalId = document.getElementById('venta-sucursal-id')?.value;
     ventasState.stockPorProducto = {};
+    ventasState.stockSucursalCargado = false;
 
-    if (!sucursalUid) {
+    if (!sucursalUid && !sucursalId) {
         actualizarStockProductoVenta('Selecciona una sucursal para consultar stock.');
+        llenarComboProductos('Selecciona producto');
         return;
     }
 
     actualizarStockProductoVenta('Consultando stock de la sucursal...');
     try {
-        const ruta = `${VENTAS_EXTERNAL_ROUTES.stockSucursal}?sucursal_uid=${encodeURIComponent(sucursalUid)}`;
-        const response = await apiCall(API_PORTS.inventario, ruta);
-        const stockItems = getResponseList(response, ['stock', 'inventario', 'items', 'productos'])
+        const response = await apiCall(API_PORTS.inventario, VENTAS_EXTERNAL_ROUTES.stockSucursal);
+        const stockItems = getResponseList(response, ['data', 'stock', 'inventario', 'items', 'productos'])
             .map(normalizarStockProducto)
-            .filter(item => item.producto_uid || item.producto_id);
+            .filter(item => {
+                const mismaSucursal = item.sucursal_uid === sucursalUid
+                    || (sucursalId && String(item.sucursal_id) === String(sucursalId));
+                return mismaSucursal && (item.producto_uid || item.producto_id);
+            });
 
         stockItems.forEach(item => {
             if (item.producto_uid) ventasState.stockPorProducto[item.producto_uid] = item.stock;
             if (item.producto_id) ventasState.stockPorProducto[`id:${item.producto_id}`] = item.stock;
         });
+        ventasState.stockSucursalCargado = true;
+        llenarComboProductos(stockItems.length ? 'Selecciona producto' : 'Sin stock en esta sucursal');
         actualizarStockProductoVenta();
     } catch (error) {
         ventasState.stockPorProducto = {};
-        actualizarStockProductoVenta('Stock no disponible. Falta o no responde el GET de inventario.');
+        ventasState.stockSucursalCargado = false;
+        llenarComboProductos('Selecciona producto');
+        actualizarStockProductoVenta('Stock no disponible. No responde el balance de inventario.');
     }
 }
 
@@ -644,6 +678,26 @@ function llenarComboProductos(emptyLabel = 'Selecciona producto') {
     if (!select) return;
     select.innerHTML = renderProductoOptions(emptyLabel);
     seleccionarProductoVenta();
+}
+
+function getProductosDisponiblesVenta() {
+    const sucursalUid = document.getElementById('venta-sucursal-uid')?.value.trim();
+    if (!sucursalUid || !ventasState.stockSucursalCargado) {
+        return ventasState.catalogoProductos;
+    }
+
+    return ventasState.catalogoProductos.filter(producto => {
+        const stock = getStockProducto(producto.uid);
+        return stock !== null && stock > 0;
+    });
+}
+
+function getProductoEmptyLabel(defaultLabel, productosCount) {
+    const sucursalUid = document.getElementById('venta-sucursal-uid')?.value.trim();
+    if (!sucursalUid) return defaultLabel;
+    if (!ventasState.stockSucursalCargado) return defaultLabel;
+    if (!productosCount) return 'No hay productos con stock en esta sucursal';
+    return defaultLabel;
 }
 
 function getEmpleadosDisponiblesVenta() {
@@ -699,6 +753,7 @@ function seleccionarProductoVenta() {
     uidInput.value = producto ? producto.uid : '';
     precioInput.value = producto ? Number(producto.precio).toFixed(2) : '';
     precioInput.readOnly = true;
+    actualizarLimitesCantidadProductoVenta();
     actualizarStockProductoVenta();
 }
 
@@ -735,7 +790,13 @@ function actualizarStockProductoVenta(message = null) {
 
     const cantidadEnVenta = getCantidadProductoEnVenta(productoUid);
     const restante = Math.max(stock - cantidadEnVenta, 0);
+    const cantidadActual = Number(document.getElementById('producto-cantidad')?.value || 0);
     info.textContent = `Stock disponible: ${stock}. Ya agregado: ${cantidadEnVenta}. Restante: ${restante}.`;
+    if (cantidadActual > restante) {
+        info.textContent = `No hay stock suficiente. Disponible para agregar: ${restante}. Cantidad solicitada: ${cantidadActual}.`;
+        info.classList.add('stock-warning');
+        return;
+    }
     if (restante <= 0) {
         info.classList.add('stock-warning');
     }
@@ -976,7 +1037,7 @@ function renderTablaVentas() {
                         <td>${escapeHtml(getNombreClienteVenta(venta))}</td>
                         <td>${escapeHtml(getNombreSucursalVenta(venta))}</td>
                         <td>Bs ${centavosToMoney(venta.total_centavos)}</td>
-                        <td>${renderEstadoVenta(venta)}</td>
+                        <td>${renderEstadoVentaTabla(venta)}</td>
                         <td class="table-actions">
                             <button type="button" class="table-action view-action" onclick="verDetalleVenta(${venta.id})">Ver</button>
                             <button type="button" class="table-action pdf-table-action" onclick="descargarComprobante(${venta.id})">PDF</button>
@@ -1003,35 +1064,26 @@ function getVentasFiltradas() {
             venta.sucursal_uid,
             centavosToMoney(venta.total_centavos),
             venta.estado,
-            venta.estado_pago,
+            venta.tipo_venta,
             centavosToMoney(venta.saldo_pendiente_centavos)
         ];
         return values.some(value => String(value || '').toLowerCase().includes(filtro));
     });
 }
 
-function renderEstadoVenta(venta) {
+function renderEstadoVentaTabla(venta) {
     const estadoClass = venta.estado === 'anulada' ? 'status-pill cancelled' : 'status-pill';
     const saldo = Number(venta.saldo_pendiente_centavos || 0);
-    const estadoPago = venta.estado_pago || 'pagado';
-    const saldoTexto = saldo > 0 ? ` - Saldo Bs ${centavosToMoney(saldo)}` : '';
+    const notaCredito = venta.estado !== 'anulada' && venta.tipo_venta === 'credito'
+        ? `<small class="credit-note">${saldo > 0 ? `Credito: saldo Bs ${centavosToMoney(saldo)}` : 'Credito sin saldo'}</small>`
+        : '';
 
     return `
-        <div class="payment-status-cell">
+        <div class="sale-status-cell">
             <span class="${estadoClass}">${escapeHtml(venta.estado)}</span>
-            <span class="status-pill payment-status">${escapeHtml(formatEstadoPago(estadoPago))}${escapeHtml(saldoTexto)}</span>
+            ${notaCredito}
         </div>
     `;
-}
-
-function formatEstadoPago(value) {
-    const labels = {
-        pagado: 'Pago pagado',
-        parcial: 'Pago parcial',
-        pendiente: 'Pago pendiente',
-        anulada: 'Pago anulado'
-    };
-    return labels[value] || value || 'Pago pagado';
 }
 
 function getNombreClienteVenta(venta) {
@@ -1058,6 +1110,9 @@ async function verDetalleVenta(ventaId) {
     try {
         const response = await apiCall(API_PORTS.ventas, `/api/ventas/${ventaId}`);
         const venta = response.data;
+        if (!ventasState.catalogoProductos.length) {
+            await cargarProductosVentas();
+        }
         document.getElementById('ventas-modal-title').textContent = `Detalle ${venta.uid}`;
         document.getElementById('ventas-modal-body').innerHTML = renderDetalleVenta(venta);
         document.getElementById('ventas-modal').hidden = false;
@@ -1076,7 +1131,6 @@ function renderDetalleVenta(venta) {
             <p><strong>Pagado:</strong> Bs ${centavosToMoney(venta.monto_pagado_centavos)}</p>
             <p><strong>Saldo pendiente:</strong> Bs ${centavosToMoney(venta.saldo_pendiente_centavos)}</p>
             <p><strong>Estado:</strong> ${escapeHtml(venta.estado)}</p>
-            <p><strong>Estado de pago:</strong> ${escapeHtml(formatEstadoPago(venta.estado_pago))}</p>
         </div>
         <h5>Productos</h5>
         <table class="ventas-table">
@@ -1091,7 +1145,7 @@ function renderDetalleVenta(venta) {
             <tbody>
                 ${(venta.detalle || []).map(item => `
                     <tr>
-                        <td>${escapeHtml(item.producto_uid)}</td>
+                        <td>${escapeHtml(getNombreProductoReporte(item))}</td>
                         <td>${item.cantidad}</td>
                         <td>Bs ${centavosToMoney(item.precio_unitario_centavos)}</td>
                         <td>Bs ${centavosToMoney(item.subtotal_centavos)}</td>
@@ -1127,7 +1181,14 @@ function renderDetalleVenta(venta) {
 }
 
 async function anularVenta(ventaId) {
-    const confirmed = confirm('La venta se marcara como anulada, pero no se borrara de la base de datos. Deseas continuar?');
+    const confirmed = await confirmarAccionVentas({
+        title: 'Anular venta',
+        message: 'La venta se marcara como anulada.',
+        detail: 'Se devolvera el stock y se revertira la fidelizacion si corresponde.',
+        confirmText: 'Si, anular',
+        cancelText: 'Cancelar',
+        type: 'danger'
+    });
     if (!confirmed) return;
 
     try {
@@ -1139,9 +1200,15 @@ async function anularVenta(ventaId) {
             document.getElementById('ventas-modal-title').textContent = `Detalle ${venta.uid}`;
             document.getElementById('ventas-modal-body').innerHTML = renderDetalleVenta(venta);
         }
-        alert(response.message || 'Venta anulada correctamente.');
+        const warnings = response.advertencias && response.advertencias.length
+            ? ` Advertencias: ${response.advertencias.join(' ')}`
+            : '';
+        mostrarNotificacionVentas(
+            `${response.message || 'Venta anulada correctamente.'}${warnings}`,
+            response.status === 'warning' ? 'warning' : 'success'
+        );
     } catch (error) {
-        alert('No se pudo anular la venta.');
+        mostrarNotificacionVentas('Error: no se pudo anular la venta. Revise los datos e intente nuevamente.', 'error');
     }
 }
 
@@ -1155,16 +1222,18 @@ function agregarProductoVenta() {
     const cantidadYaAgregada = getCantidadProductoEnVenta(productoUid);
     const errors = [];
 
-    if (!isPositiveInteger(productoId)) errors.push('El ID de producto debe ser un numero entero positivo.');
-    if (!isSafeRequiredText(productoUid)) errors.push('El UID del producto es obligatorio y no puede contener HTML.');
+    if (!isPositiveInteger(productoId) || !isSafeRequiredText(productoUid)) {
+        errors.push('Selecciona un producto de la lista.');
+    }
     if (!Number.isInteger(cantidad) || cantidad <= 0) errors.push('La cantidad debe ser un entero positivo.');
     if (!Number.isFinite(precio) || precio <= 0) errors.push('El precio debe ser mayor a cero.');
     if (stock !== null && cantidad + cantidadYaAgregada > stock) {
-        errors.push(`Stock insuficiente. Disponible: ${stock}. Ya agregado: ${cantidadYaAgregada}.`);
+        const disponibleParaAgregar = Math.max(stock - cantidadYaAgregada, 0);
+        errors.push(`No hay stock suficiente para este producto. Disponible para agregar: ${disponibleParaAgregar}. Cantidad solicitada: ${cantidad}.`);
     }
 
     if (errors.length) {
-        mostrarMensajeVenta(errors.join(' '), true);
+        mostrarMensajeVenta(errors.join(' '), 'error');
         return;
     }
 
@@ -1190,6 +1259,7 @@ function agregarProductoVenta() {
 function quitarProductoVenta(index) {
     ventasState.productos.splice(index, 1);
     renderProductosVenta();
+    actualizarLimitesCantidadProductoVenta();
     actualizarStockProductoVenta();
 }
 
@@ -1245,11 +1315,18 @@ function validarVentaAntesDeEnviar() {
     const porcentajePuntos = Number(document.getElementById('descuento-puntos-porcentaje')?.value || 0);
     const tipoVenta = document.getElementById('venta-tipo')?.value || 'contado';
     const montoPago = getMontoPagoVenta();
+    const metodoPago = document.getElementById('venta-metodo-pago')?.value || '';
     const total = calcularTotalVenta();
     const subtotal = calcularSubtotalVenta();
 
-    if (!isPositiveInteger(sucursalId)) errors.push('La sucursal debe tener un ID entero positivo.');
-    if (!isSafeRequiredText(sucursalUid)) errors.push('El UID de sucursal es obligatorio y no puede contener HTML.');
+    if (!isPositiveInteger(sucursalId) || !isSafeRequiredText(sucursalUid)) {
+        errors.push('Selecciona una sucursal.');
+    }
+    if (!empleadoUid) {
+        errors.push('Selecciona un empleado.');
+    } else if (!ventasState.empleados.some(empleado => empleado.uid === empleadoUid)) {
+        errors.push('El empleado seleccionado no es valido.');
+    }
     if (clienteUid && !ventasState.clientes.some(cliente => cliente.uid === clienteUid)) {
         errors.push('El cliente seleccionado no es valido.');
     }
@@ -1270,7 +1347,7 @@ function validarVentaAntesDeEnviar() {
         if (nuevoClienteCorreo && !isSafeText(nuevoClienteCorreo)) errors.push('El correo del nuevo cliente no puede contener HTML.');
         if (nuevoClienteCorreo && !isValidEmail(nuevoClienteCorreo)) errors.push('El correo del nuevo cliente no tiene formato valido.');
     }
-    if (empleadoUid && !isSafeText(empleadoUid)) errors.push('El UID de empleado no puede contener HTML.');
+    if (empleadoUid && !isSafeText(empleadoUid)) errors.push('El empleado seleccionado no es valido.');
     if (referencia && !isSafeText(referencia)) errors.push('La referencia de pago no puede contener HTML.');
     if (!ventasState.productos.length) errors.push('Agrega al menos un producto.');
     if (total <= 0) errors.push('El total de la venta debe ser mayor a cero.');
@@ -1281,10 +1358,13 @@ function validarVentaAntesDeEnviar() {
     if (tipoVenta === 'contado' && montoPago !== total) {
         errors.push('En ventas al contado el monto pagado debe ser igual al total.');
     }
+    if (metodoPago === 'sin_pago' && (tipoVenta !== 'credito' || montoPago > 0)) {
+        errors.push('Sin pago inicial solo se permite en ventas a credito con monto inicial 0.');
+    }
 
     ventasState.productos.forEach((producto, index) => {
-        if (!isSafeRequiredText(producto.producto_uid)) {
-            errors.push(`El producto ${index + 1} tiene UID invalido.`);
+        if (!isPositiveInteger(producto.producto_id) || !isSafeRequiredText(producto.producto_uid)) {
+            errors.push(`El producto ${index + 1} no es valido. Vuelve a seleccionarlo.`);
         }
     });
     const productosRevisados = new Set();
@@ -1329,13 +1409,20 @@ async function obtenerClienteParaVenta() {
 }
 
 async function registrarVenta(event) {
-    event.preventDefault();
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const submitButton = event?.target?.closest('button');
+    if (submitButton?.disabled) return false;
+    if (submitButton) submitButton.disabled = true;
     actualizarTotalVenta();
 
     const errors = validarVentaAntesDeEnviar();
     if (errors.length) {
-        mostrarMensajeVenta(errors.join(' '), true);
-        return;
+        if (submitButton) submitButton.disabled = false;
+        mostrarMensajeVenta(errors.join(' '), 'error');
+        return false;
     }
 
     let cliente = null;
@@ -1345,13 +1432,16 @@ async function registrarVenta(event) {
     try {
         cliente = await obtenerClienteParaVenta();
     } catch (error) {
-        mostrarMensajeVenta(error.message, true);
-        return;
+        if (submitButton) submitButton.disabled = false;
+        mostrarMensajeVenta(error.message, 'error');
+        return false;
     }
 
     const empleadoUid = document.getElementById('venta-empleado-uid').value.trim();
     const empleado = ventasState.empleados.find(item => item.uid === empleadoUid) || null;
     const clientePayloadVenta = cliente ? { ...cliente } : null;
+    const metodoPago = document.getElementById('venta-metodo-pago').value;
+    const referenciaPago = document.getElementById('venta-referencia').value.trim();
 
     const payload = {
         sucursal_id: Number(document.getElementById('venta-sucursal-id').value),
@@ -1369,9 +1459,9 @@ async function registrarVenta(event) {
         },
         productos: ventasState.productos,
         pago: {
-            metodo_pago: document.getElementById('venta-metodo-pago').value,
+            metodo_pago: metodoPago,
             monto: montoPago.toFixed(2),
-            referencia: document.getElementById('venta-referencia').value.trim() || null
+            referencia: referenciaPago || (metodoPago === 'sin_pago' ? 'Credito sin pago inicial' : null)
         }
     };
 
@@ -1384,13 +1474,34 @@ async function registrarVenta(event) {
             ? ` Puntos ganados: ${response.fidelizacion.puntos_ganados}.`
             : '';
         guardarNombreClienteDesdeVenta(response.data);
-        mostrarMensajeVenta(`Venta registrada correctamente.${puntos}${warnings}`, response.status === 'warning');
+        mostrarMensajeVenta(
+            `Venta registrada con exito.${puntos}${warnings}`,
+            response.status === 'warning' ? 'warning' : 'success'
+        );
+        const venta = response.data || {};
+        const ventaId = venta.id || venta.venta_id;
+        const comprobanteUrl = ventaId ? getComprobanteUrl(ventaId) : '';
+        const ventaExitosaPayload = {
+            title: 'Venta exitosa',
+            message: 'La venta se registro correctamente.',
+            detail: venta.factura?.numero_factura
+                ? `Comprobante generado: ${venta.factura.numero_factura}`
+                : 'El comprobante PDF fue generado.',
+            buttonText: 'Aceptar',
+            type: response.status === 'warning' ? 'warning' : 'success',
+            actionUrl: comprobanteUrl
+        };
+        guardarVentaExitosaPendiente(ventaExitosaPayload);
+        cerrarModalVenta();
         ventasState.productos = [];
         await cargarVentas();
-        setTimeout(cerrarModalVenta, 700);
     } catch (error) {
-        mostrarMensajeVenta(`No se pudo registrar la venta: ${error.message || 'revisa los datos y servicios.'}`, true);
+        mostrarMensajeVenta(`Error: no se pudo registrar la venta. Revise los datos. ${error.message || ''}`.trim(), 'error');
+        mostrarNotificacionVentas('Error: revise los datos antes de registrar la venta.', 'error');
+    } finally {
+        if (submitButton) submitButton.disabled = false;
     }
+    return false;
 }
 
 function actualizarTotalVenta() {
@@ -1405,6 +1516,7 @@ function actualizarPagoCreditoVenta() {
     const montoField = document.getElementById('credito-monto-field');
     const montoInput = document.getElementById('venta-monto-inicial');
     const saldoInfo = document.getElementById('credito-saldo-info');
+    const metodoSelect = document.getElementById('venta-metodo-pago');
     const total = calcularTotalVenta();
     const esCredito = tipo === 'credito';
 
@@ -1413,11 +1525,24 @@ function actualizarPagoCreditoVenta() {
 
     if (!esCredito) {
         if (montoInput) montoInput.value = total.toFixed(2);
+        if (metodoSelect) {
+            metodoSelect.disabled = false;
+            if (metodoSelect.value === 'sin_pago') metodoSelect.value = 'efectivo';
+        }
         return;
     }
 
     const montoInicial = Math.min(Number(montoInput?.value || 0), total);
     const saldo = Math.max(total - montoInicial, 0);
+    if (metodoSelect) {
+        if (montoInicial <= 0) {
+            metodoSelect.value = 'sin_pago';
+            metodoSelect.disabled = true;
+        } else {
+            metodoSelect.disabled = false;
+            if (metodoSelect.value === 'sin_pago') metodoSelect.value = 'efectivo';
+        }
+    }
     if (saldoInfo) {
         saldoInfo.textContent = `Saldo pendiente: Bs ${saldo.toFixed(2)}`;
     }
@@ -1456,16 +1581,206 @@ function calcularDescuentoPuntosVenta() {
     return (calcularSubtotalVenta() * porcentaje) / 100;
 }
 
-function mostrarMensajeVenta(message, isError = false) {
+function mostrarMensajeVenta(message, type = 'success') {
     const box = document.getElementById('venta-mensaje');
     if (!box) return;
+    const messageType = typeof type === 'boolean' ? (type ? 'warning' : 'success') : type;
     box.hidden = false;
     box.textContent = message;
-    box.className = isError ? 'ventas-message warning' : 'ventas-message success';
+    box.className = `ventas-message ${messageType}`;
+}
+
+function mostrarNotificacionVentas(message, type = 'success') {
+    const previous = document.querySelector('.ventas-toast');
+    if (previous) previous.remove();
+
+    const toast = document.createElement('div');
+    toast.className = `ventas-toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add('is-hiding');
+        setTimeout(() => toast.remove(), 250);
+    }, 4200);
+}
+
+async function mostrarVentaExitosaSweetAlert({
+    title = 'Venta exitosa',
+    message = 'La venta se registro correctamente.',
+    detail = '',
+    buttonText = 'Aceptar',
+    type = 'success',
+    actionUrl = ''
+} = {}) {
+    if (!window.Swal) {
+        return mostrarAlertaVentas({ title, message, detail, buttonText, type, actionUrl });
+    }
+
+    const icon = type === 'warning' ? 'warning' : 'success';
+    const comprobanteLink = actionUrl
+        ? `<a href="${escapeHtml(actionUrl)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:14px;padding:10px 14px;border-radius:6px;background:#6d4aff;color:#fff;text-decoration:none;font-weight:700;">Abrir comprobante</a>`
+        : '';
+    const html = `
+        <p style="margin:0 0 8px;">${escapeHtml(message)}</p>
+        ${detail ? `<p style="margin:0;color:#6b7280;">${escapeHtml(detail)}</p>` : ''}
+        ${comprobanteLink}
+    `;
+
+    await Swal.fire({
+        icon,
+        title,
+        html,
+        confirmButtonText: buttonText,
+        confirmButtonColor: '#1f7a3f',
+        allowOutsideClick: false,
+        allowEscapeKey: true
+    });
+}
+
+function guardarVentaExitosaPendiente(payload) {
+    try {
+        sessionStorage.setItem(VENTA_EXITOSA_STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+        console.warn('No se pudo guardar la alerta de venta exitosa.', error);
+    }
+}
+
+function limpiarVentaExitosaPendiente() {
+    try {
+        sessionStorage.removeItem(VENTA_EXITOSA_STORAGE_KEY);
+    } catch (error) {
+        console.warn('No se pudo limpiar la alerta de venta exitosa.', error);
+    }
+}
+
+async function mostrarVentaExitosaPendiente() {
+    let payload = null;
+    try {
+        const raw = sessionStorage.getItem(VENTA_EXITOSA_STORAGE_KEY);
+        payload = raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        limpiarVentaExitosaPendiente();
+        return;
+    }
+
+    if (!payload) return;
+    await mostrarVentaExitosaSweetAlert(payload);
+    limpiarVentaExitosaPendiente();
+}
+
+function mostrarAlertaVentas({
+    title = 'Operacion realizada',
+    message = '',
+    detail = '',
+    buttonText = 'Aceptar',
+    type = 'success',
+    actionUrl = ''
+} = {}) {
+    return new Promise(resolve => {
+        const previous = document.querySelector('.ventas-confirm-backdrop');
+        if (previous) previous.remove();
+
+        const backdrop = document.createElement('div');
+        backdrop.className = 'ventas-confirm-backdrop';
+        backdrop.innerHTML = `
+            <div class="ventas-confirm-card ${type}" role="dialog" aria-modal="true" aria-labelledby="ventas-alert-title">
+                <div class="ventas-confirm-icon" aria-hidden="true">${type === 'success' ? 'OK' : '!'}</div>
+                <h4 id="ventas-alert-title">${escapeHtml(title)}</h4>
+                ${message ? `<p>${escapeHtml(message)}</p>` : ''}
+                ${detail ? `<span>${escapeHtml(detail)}</span>` : ''}
+                <div class="ventas-confirm-actions">
+                    ${actionUrl
+                        ? `<a class="action-btn create-action ventas-confirm-link" href="${escapeHtml(actionUrl)}" target="_blank" rel="noopener" data-alert-action="close">${escapeHtml(buttonText)}</a>`
+                        : `<button type="button" class="action-btn create-action" data-alert-action="close">${escapeHtml(buttonText)}</button>`}
+                </div>
+            </div>
+        `;
+
+        const close = () => {
+            backdrop.classList.add('is-hiding');
+            setTimeout(() => {
+                backdrop.remove();
+                resolve();
+            }, 160);
+        };
+
+        backdrop.addEventListener('click', event => {
+            if (event.target.dataset.alertAction === 'close') close();
+        });
+
+        document.body.appendChild(backdrop);
+        backdrop.querySelector('[data-alert-action="close"]')?.focus();
+    });
+}
+
+function confirmarAccionVentas({
+    title = 'Confirmar accion',
+    message = 'Deseas continuar?',
+    detail = '',
+    confirmText = 'Confirmar',
+    cancelText = 'Cancelar',
+    type = 'warning'
+} = {}) {
+    return new Promise(resolve => {
+        const previous = document.querySelector('.ventas-confirm-backdrop');
+        if (previous) previous.remove();
+
+        const backdrop = document.createElement('div');
+        backdrop.className = 'ventas-confirm-backdrop';
+        backdrop.innerHTML = `
+            <div class="ventas-confirm-card ${type}" role="dialog" aria-modal="true" aria-labelledby="ventas-confirm-title">
+                <div class="ventas-confirm-icon" aria-hidden="true">!</div>
+                <h4 id="ventas-confirm-title">${escapeHtml(title)}</h4>
+                <p>${escapeHtml(message)}</p>
+                ${detail ? `<span>${escapeHtml(detail)}</span>` : ''}
+                <div class="ventas-confirm-actions">
+                    <button type="button" class="action-btn ghost-action" data-confirm-action="cancel">${escapeHtml(cancelText)}</button>
+                    <button type="button" class="action-btn danger-action" data-confirm-action="confirm">${escapeHtml(confirmText)}</button>
+                </div>
+            </div>
+        `;
+
+        const close = value => {
+            backdrop.classList.add('is-hiding');
+            setTimeout(() => {
+                backdrop.remove();
+                resolve(value);
+            }, 160);
+        };
+
+        backdrop.addEventListener('click', event => {
+            const action = event.target.dataset.confirmAction;
+            if (action === 'confirm') close(true);
+            if (action === 'cancel' || event.target === backdrop) close(false);
+        });
+
+        document.addEventListener('keydown', function onKeydown(event) {
+            if (!document.body.contains(backdrop)) {
+                document.removeEventListener('keydown', onKeydown);
+                return;
+            }
+            if (event.key === 'Escape') {
+                document.removeEventListener('keydown', onKeydown);
+                close(false);
+            }
+        });
+
+        document.body.appendChild(backdrop);
+        backdrop.querySelector('[data-confirm-action="confirm"]')?.focus();
+    });
+}
+
+function getComprobanteUrl(ventaId) {
+    return `${BASE_URL}:${API_PORTS.ventas}/api/ventas/${ventaId}/comprobante`;
+}
+
+function abrirComprobanteRegistrado(ventaId) {
+    window.open(getComprobanteUrl(ventaId), '_blank');
 }
 
 function descargarComprobante(ventaId) {
-    window.open(`${BASE_URL}:${API_PORTS.ventas}/api/ventas/${ventaId}/comprobante`, '_blank');
+    abrirComprobanteRegistrado(ventaId);
 }
 
 function descargarArchivo(filename, mimeType, content) {
@@ -1546,6 +1861,8 @@ function normalizarStockProducto(item) {
     return {
         producto_id: productoId ? String(productoId).trim() : '',
         producto_uid: String(productoUid).trim(),
+        sucursal_id: item.sucursal_id ?? item.id_sucursal ?? '',
+        sucursal_uid: item.sucursal_uid || item.uid_sucursal || '',
         stock: Math.max(Number(stockValue) || 0, 0)
     };
 }
@@ -1580,6 +1897,37 @@ function getCantidadProductoEnVenta(productoUid) {
     return ventasState.productos
         .filter(producto => producto.producto_uid === productoUid)
         .reduce((total, producto) => total + Number(producto.cantidad || 0), 0);
+}
+
+function normalizarCantidadProductoVenta() {
+    const input = document.getElementById('producto-cantidad');
+    if (!input || input.value === '') return;
+
+    let cantidad = Number(input.value);
+    if (!Number.isFinite(cantidad) || cantidad < 1) {
+        input.value = '1';
+        return;
+    }
+    if (!Number.isInteger(cantidad)) {
+        input.value = String(Math.floor(cantidad));
+    }
+}
+
+function actualizarLimitesCantidadProductoVenta() {
+    const input = document.getElementById('producto-cantidad');
+    const productoUid = document.getElementById('producto-uid')?.value.trim();
+    if (!input) return;
+
+    input.min = '1';
+    input.step = '1';
+    input.removeAttribute('max');
+
+    if (!productoUid) return;
+    const stock = getStockProducto(productoUid);
+    if (stock === null) return;
+
+    const cantidadYaAgregada = getCantidadProductoEnVenta(productoUid);
+    input.max = String(Math.max(stock - cantidadYaAgregada, 0));
 }
 
 function getNombreProductoReporte(productoReporte) {
@@ -1675,6 +2023,8 @@ function formatDate(value) {
 
 document.addEventListener('input', event => {
     if (event.target && event.target.id === 'producto-cantidad') {
+        normalizarCantidadProductoVenta();
+        actualizarLimitesCantidadProductoVenta();
         actualizarStockProductoVenta();
     }
 });

@@ -22,7 +22,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "database", "ventas.db"))
 COMPROBANTES_DIR = os.path.join(BASE_DIR, "comprobantes")
 
-INVENTARIO_BAJA_URL = "http://127.0.0.1:5002/api/inventario/baja"
+INVENTARIO_OUTPUT_URL = "http://127.0.0.1:5002/inventory/output"
+INVENTARIO_INPUT_URL = "http://127.0.0.1:5002/inventory/input"
 NOTIFICACIONES_EVENTO_URL = "http://127.0.0.1:5005/api/eventos/publicar"
 CLIENTES_SERVICE_URL = "http://127.0.0.1:5004"
 PRODUCTOS_SERVICE_URL = "http://127.0.0.1:5003"
@@ -110,8 +111,24 @@ def get_allowed_points_discount_percent(puntos):
     return min((int(puntos or 0) // 100) * 10, 30)
 
 
+def get_points_required_for_discount(percent):
+    return (int(percent or 0) // 10) * 100
+
+
 def get_points_earned(total_centavos):
     return int(total_centavos or 0) // 10000
+
+
+def infer_points_used_from_discount(subtotal_centavos, descuento_centavos):
+    subtotal = int(subtotal_centavos or 0)
+    descuento = int(descuento_centavos or 0)
+    if subtotal <= 0 or descuento <= 0:
+        return 0
+
+    for percent in (10, 20, 30):
+        if (subtotal * percent) // 100 == descuento:
+            return get_points_required_for_discount(percent)
+    return 0
 
 
 def get_payment_status(tipo_venta, estado_venta, total_centavos, monto_pagado_centavos):
@@ -262,6 +279,46 @@ def publish_customer_loyalty_update(
         return " ".join(warnings) if warnings else None
     except requests.RequestException as exc:
         return f"No se pudo actualizar fidelizacion del cliente: {exc}"
+
+
+def publish_customer_points_redemption(cliente_id, venta_uid, puntos_usados):
+    if not cliente_id or int(puntos_usados or 0) <= 0:
+        return None
+
+    try:
+        response = requests.post(
+            f"{CLIENTES_SERVICE_URL}/api/clientes/{cliente_id}/puntos/restar",
+            json={
+                "puntos": int(puntos_usados),
+                "descripcion": f"Canje de puntos por descuento en venta {venta_uid}",
+            },
+            timeout=3,
+        )
+        if response.status_code >= 400:
+            return f"Clientes respondio {response.status_code} al descontar puntos usados."
+        return None
+    except requests.RequestException as exc:
+        return f"No se pudo descontar puntos usados del cliente: {exc}"
+
+
+def publish_customer_points_restore(cliente_id, venta_uid, puntos_devueltos):
+    if not cliente_id or int(puntos_devueltos or 0) <= 0:
+        return None
+
+    try:
+        response = requests.post(
+            f"{CLIENTES_SERVICE_URL}/api/clientes/{cliente_id}/puntos/sumar",
+            json={
+                "puntos": int(puntos_devueltos),
+                "descripcion": f"Devolucion de puntos por anulacion de venta {venta_uid}",
+            },
+            timeout=3,
+        )
+        if response.status_code >= 400:
+            return f"Clientes respondio {response.status_code} al devolver puntos usados."
+        return None
+    except requests.RequestException as exc:
+        return f"No se pudo devolver puntos usados al cliente: {exc}"
 
 
 # Utilidad para crear UID opacos, similar al formato usado por Clientes/Productos.
@@ -447,25 +504,54 @@ def regenerate_comprobante_pdf(venta):
 
 
 # Solicita al microservicio de Inventario descontar stock por cada producto vendido.
-def publish_inventory_discounts(items, venta_uid, sucursal_uid):
+def publish_inventory_discounts(items, venta_uid, sucursal_id, sucursal_uid):
+    warnings = []
+    for item in items:
+        payload = {
+            "producto_id": item["producto_id"],
+            "sucursal_id": sucursal_id,
+            "cantidad": item["cantidad"],
+            "motivo": f"venta:{venta_uid}",
+        }
+        try:
+            response = requests.post(INVENTARIO_OUTPUT_URL, json=payload, timeout=3)
+            if response.status_code >= 400:
+                try:
+                    detail = response.json().get("message", "") if response.content else ""
+                except ValueError:
+                    detail = response.text
+                warnings.append(
+                    f"Inventario respondio {response.status_code} para producto {item['producto_uid']}. {detail}".strip()
+                )
+        except requests.RequestException as exc:
+            warnings.append(f"No se pudo descontar inventario de {item['producto_uid']}: {exc}")
+    return warnings
+
+
+# Devuelve stock a Inventario cuando una venta se anula.
+def publish_inventory_returns(items, venta_uid, sucursal_id, sucursal_uid):
     warnings = []
     for item in items:
         payload = {
             "producto_id": item["producto_id"],
             "producto_uid": item["producto_uid"],
-            "cantidad": item["cantidad"],
+            "sucursal_id": sucursal_id,
             "sucursal_uid": sucursal_uid,
-            "origen": "ventas_service",
-            "venta_uid": venta_uid,
+            "cantidad": item["cantidad"],
+            "motivo": f"anulacion_venta:{venta_uid}",
         }
         try:
-            response = requests.post(INVENTARIO_BAJA_URL, json=payload, timeout=3)
+            response = requests.post(INVENTARIO_INPUT_URL, json=payload, timeout=3)
             if response.status_code >= 400:
+                try:
+                    detail = response.json().get("message", "") if response.content else ""
+                except ValueError:
+                    detail = response.text
                 warnings.append(
-                    f"Inventario respondio {response.status_code} para producto {item['producto_uid']}."
+                    f"Inventario respondio {response.status_code} al devolver {item['producto_uid']}. {detail}".strip()
                 )
         except requests.RequestException as exc:
-            warnings.append(f"No se pudo descontar inventario de {item['producto_uid']}: {exc}")
+            warnings.append(f"No se pudo devolver inventario de {item['producto_uid']}: {exc}")
     return warnings
 
 
@@ -614,68 +700,87 @@ def health_check():
     return jsonify({"status": "success", "message": f"{SERVICE_NAME} OK en puerto {SERVICE_PORT}"}), 200
 
 
-# Reporte de ventas por dia o por mes, agrupado por metodo de pago y productos vendidos.
+# Reporte de ventas por dia, mes o rango, agrupado por tipo/metodo de pago y productos vendidos.
 @app.route("/api/ventas/reportes", methods=["GET"])
 def reporte_ventas():
     try:
         tipo = request.args.get("tipo", "dia")
-        if tipo not in ("dia", "mes"):
-            return jsonify({"status": "error", "message": "El tipo debe ser 'dia' o 'mes'."}), 400
+        if tipo not in ("dia", "mes", "rango"):
+            return jsonify({"status": "error", "message": "El tipo debe ser 'dia', 'mes' o 'rango'."}), 400
 
         if tipo == "mes":
             periodo = request.args.get("mes") or datetime.now().strftime("%Y-%m")
             if not re.fullmatch(r"\d{4}-\d{2}", periodo):
                 return jsonify({"status": "error", "message": "El mes debe tener formato YYYY-MM."}), 400
             date_filter = "strftime('%Y-%m', v.creado_en) = ?"
+            params = (periodo,)
+        elif tipo == "rango":
+            fecha_inicio = request.args.get("fecha_inicio") or datetime.now().strftime("%Y-%m-%d")
+            fecha_fin = request.args.get("fecha_fin") or fecha_inicio
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fecha_inicio):
+                return jsonify({"status": "error", "message": "La fecha inicio debe tener formato YYYY-MM-DD."}), 400
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fecha_fin):
+                return jsonify({"status": "error", "message": "La fecha fin debe tener formato YYYY-MM-DD."}), 400
+            if fecha_inicio > fecha_fin:
+                return jsonify({"status": "error", "message": "La fecha inicio no puede ser mayor a la fecha fin."}), 400
+            periodo = f"{fecha_inicio} a {fecha_fin}"
+            date_filter = "date(v.creado_en) BETWEEN ? AND ?"
+            params = (fecha_inicio, fecha_fin)
         else:
             periodo = request.args.get("fecha") or datetime.now().strftime("%Y-%m-%d")
             if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", periodo):
                 return jsonify({"status": "error", "message": "La fecha debe tener formato YYYY-MM-DD."}), 400
             date_filter = "date(v.creado_en) = ?"
+            params = (periodo,)
 
         conn = get_db_connection()
         resumen = conn.execute(
             f"""
             SELECT
                 COUNT(DISTINCT v.id) AS cantidad_ventas,
-                COALESCE(SUM(p.monto_centavos), 0) AS total_centavos
+                COALESCE(SUM(v.total_centavos), 0) AS total_centavos
             FROM ventas v
-            LEFT JOIN pagos_ventas p ON p.venta_id = v.id
             WHERE v.estado = 'confirmada' AND {date_filter}
             """,
-            (periodo,),
+            params,
         ).fetchone()
         pagos = conn.execute(
             f"""
             SELECT
-                p.metodo_pago,
+                CASE
+                    WHEN v.tipo_venta = 'credito' THEN 'credito'
+                    ELSE COALESCE(p.metodo_pago, 'sin_pago')
+                END AS metodo_pago,
                 COUNT(DISTINCT v.id) AS cantidad_ventas,
-                COALESCE(SUM(p.monto_centavos), 0) AS total_centavos
+                COALESCE(SUM(v.total_centavos), 0) AS total_centavos
             FROM ventas v
-            INNER JOIN pagos_ventas p ON p.venta_id = v.id
+            LEFT JOIN pagos_ventas p ON p.venta_id = v.id
             WHERE v.estado = 'confirmada' AND {date_filter}
-            GROUP BY p.metodo_pago
-            ORDER BY p.metodo_pago
+            GROUP BY metodo_pago
+            ORDER BY metodo_pago
             """,
-            (periodo,),
+            params,
         ).fetchall()
         productos = conn.execute(
             f"""
             SELECT
-                p.metodo_pago,
+                CASE
+                    WHEN v.tipo_venta = 'credito' THEN 'credito'
+                    ELSE COALESCE(p.metodo_pago, 'sin_pago')
+                END AS metodo_pago,
                 d.producto_id,
                 d.producto_uid,
                 d.precio_unitario_centavos,
                 COALESCE(SUM(d.cantidad), 0) AS cantidad,
                 COALESCE(SUM(d.subtotal_centavos), 0) AS subtotal_centavos
             FROM ventas v
-            INNER JOIN pagos_ventas p ON p.venta_id = v.id
+            LEFT JOIN pagos_ventas p ON p.venta_id = v.id
             INNER JOIN detalle_ventas d ON d.venta_id = v.id
             WHERE v.estado = 'confirmada' AND {date_filter}
-            GROUP BY p.metodo_pago, d.producto_id, d.producto_uid, d.precio_unitario_centavos
-            ORDER BY p.metodo_pago, d.producto_uid
+            GROUP BY metodo_pago, d.producto_id, d.producto_uid, d.precio_unitario_centavos
+            ORDER BY metodo_pago, d.producto_uid
             """,
-            (periodo,),
+            params,
         ).fetchall()
         conn.close()
 
@@ -787,9 +892,18 @@ def anular_venta(venta_id):
         conn = None
         regenerate_comprobante_pdf(venta)
 
-        warnings = []
+        warnings = publish_inventory_returns(
+            venta.get("detalle") or [],
+            venta.get("uid"),
+            venta.get("sucursal_id"),
+            venta.get("sucursal_uid"),
+        )
         if venta.get("cliente_uid"):
             puntos_a_revertir = get_points_earned(venta.get("total_centavos"))
+            puntos_a_devolver = infer_points_used_from_discount(
+                venta.get("subtotal_centavos"),
+                venta.get("descuento_centavos"),
+            )
             fidelizacion_warning = publish_customer_loyalty_update(
                 venta.get("cliente_id"),
                 venta.get("cliente_uid"),
@@ -801,6 +915,15 @@ def anular_venta(venta_id):
             )
             if fidelizacion_warning:
                 warnings.append(fidelizacion_warning)
+            puntos_restore_warning = publish_customer_points_restore(
+                venta.get("cliente_id"),
+                venta.get("uid"),
+                puntos_a_devolver,
+            )
+            if puntos_restore_warning:
+                warnings.append(puntos_restore_warning)
+        else:
+            puntos_a_devolver = 0
 
         event_warning = publish_sale_cancelled_event(venta)
         if event_warning:
@@ -814,6 +937,7 @@ def anular_venta(venta_id):
                 "cliente_uid": venta.get("cliente_uid"),
                 "contador_compras_incremento": -1 if venta.get("cliente_uid") else 0,
                 "puntos_revertidos": get_points_earned(venta.get("total_centavos")) if venta.get("cliente_uid") else 0,
+                "puntos_devueltos": puntos_a_devolver,
             },
             "advertencias": warnings,
         }), 200
@@ -886,6 +1010,7 @@ def registrar_venta():
 
         descuento_manual_centavos = amount_from_payload(data, "descuento_centavos", "descuento", default=0)
         descuento_puntos_centavos = 0
+        puntos_usados_descuento = 0
 
         if usar_descuento_puntos:
             if not cliente_uid:
@@ -901,6 +1026,7 @@ def registrar_venta():
                     f"El cliente solo puede usar hasta {porcentaje_permitido}% de descuento con sus puntos actuales."
                 )
 
+            puntos_usados_descuento = get_points_required_for_discount(porcentaje_descuento_puntos)
             descuento_puntos_centavos = (subtotal_centavos * porcentaje_descuento_puntos) // 100
 
         descuento_centavos = descuento_manual_centavos + descuento_puntos_centavos
@@ -912,10 +1038,13 @@ def registrar_venta():
 
         pago = data.get("pago") or {}
         metodo_pago = get_required_text(pago, "metodo_pago")
-        if metodo_pago not in ("efectivo", "tarjeta", "qr", "transferencia"):
-            raise ValueError("Metodo de pago no valido.")
         monto_default = total_centavos if tipo_venta == "contado" else 0
         monto_pago = amount_from_payload(pago, "monto_centavos", "monto", default=monto_default)
+        if metodo_pago == "sin_pago":
+            if tipo_venta != "credito" or monto_pago != 0:
+                raise ValueError("Sin pago inicial solo se permite en ventas a credito con monto inicial 0.")
+        elif metodo_pago not in ("efectivo", "tarjeta", "qr", "transferencia"):
+            raise ValueError("Metodo de pago no valido.")
         if tipo_venta == "contado" and monto_pago != total_centavos:
             raise ValueError("Para ventas al contado, el monto pagado debe ser igual al total.")
         if tipo_venta == "credito" and monto_pago > total_centavos:
@@ -1049,9 +1178,16 @@ def registrar_venta():
         conn.close()
         conn = None
 
-        warnings = publish_inventory_discounts(detalle, venta_uid, sucursal_uid)
+        warnings = publish_inventory_discounts(detalle, venta_uid, sucursal_id, sucursal_uid)
         if fidelizacion_warning:
             warnings.append(fidelizacion_warning)
+        puntos_redemption_warning = publish_customer_points_redemption(
+            cliente_id,
+            venta_uid,
+            puntos_usados_descuento,
+        )
+        if puntos_redemption_warning:
+            warnings.append(puntos_redemption_warning)
         fidelizacion_update_warning = publish_customer_loyalty_update(
             cliente_id,
             cliente_uid,
@@ -1075,6 +1211,7 @@ def registrar_venta():
                     "fidelizacion": {
                         "cliente_uid": cliente_uid,
                         "puntos_antes": puntos_actuales if cliente_uid else 0,
+                        "puntos_usados": puntos_usados_descuento,
                         "puntos_ganados": puntos_ganados,
                         "descuento_porcentaje": porcentaje_descuento_puntos if usar_descuento_puntos else 0,
                         "descuento_centavos": descuento_puntos_centavos,
